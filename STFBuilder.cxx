@@ -76,11 +76,13 @@ void AmQStrTdcSTFBuilder::BuildFrame(FairMQMessagePtr& msg, int index)
 
 	//	LOG(warn) << std::hex << "raw = " << word->raw << std::dec << std::endl;
 
-
         if (!isHeadValid) {
-
-            LOG(warn)   << " " << i << " " << offset << " unknown head = " << std::hex << static_cast<uint16_t>(h)
-			<< " " << word->raw << std::dec << std::endl;
+            static int limit_counter = 0;
+	    if (limit_couter < 10) {
+                LOG(warn)   << " " << i << " " << offset << " unknown head = " << std::hex << static_cast<uint16_t>(h)
+			    << " " << word->raw << std::dec << std::endl;
+	        limit_counter++;
+	    }
 	    //	    continue;
         }
 
