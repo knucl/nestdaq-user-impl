@@ -363,8 +363,110 @@ install(TARGETS ${EXEC};
 
 endforeach()
 
+##==============================================================================
+## OnlineAnalysis
+##==============================================================================
+#add_library(NestdaqUnpacker
+#    ${CMAKE_SOURCE_DIR}/unpacker/LeafDecoder.cc
+#    ${CMAKE_SOURCE_DIR}/unpacker/LeafProcessor.cc
+#    ${CMAKE_SOURCE_DIR}/unpacker/NodeHeaderDecoder.cc
+#    ${CMAKE_SOURCE_DIR}/unpacker/NodeUnpacker.cc
+#)
+#
+#add_library(TFSlicerUnpacker
+#    TFSlicerUnpacker.cxx
+#)
+#
+#target_include_directories(TFSlicerUnpacker PUBLIC
+#    ${Boost_INCLUDE_DIRS};  
+#    ${FairMQ_INCDIR};
+#    ${FairMQ_INCDIR}/fairmq;
+#    ${FairMQ_INCDIR}/fairlogger/bundled;
+#    ${CMAKE_SOURCE_DIR};
+#    ${ROOT_INCLUDE_DIRS};
+#    ${HIREDIS_HEADER};
+#    ${REDIS_PLUS_PLUS_HEADER};
+#    ${CMAKE_SOURCE_DIR}/unpacker
+#)
+#
+#target_link_libraries(${EXEC} PUBLIC 
+#    ${Boost_LIBRARIES};  
+#    fairmq
+#    FairLogger;
+#    ${ROOT_LIBRARIES};
+#    ${HIREDIS_LIB};
+#    ${REDIS_PLUS_PLUS_LIB};
+#    NestdaqUnpacker;
+#)
+#
+#foreach(lvar IN ITEMS
+#    OnlineAnalysisTFBuilder;
+#    OnlineAnalysisSlicer;
+#)
+#
+#set(EXEC ${lvar})
+#  add_executable(${EXEC} 
+#  ${EXEC}.cxx;
+#)
+#
+#target_include_directories(${EXEC} PUBLIC 
+#    ${Boost_INCLUDE_DIRS};  
+#    ${FairMQ_INCDIR};
+#    ${FairMQ_INCDIR}/fairmq;
+#    ${FairMQ_INCDIR}/fairlogger/bundled;
+#    ${CMAKE_SOURCE_DIR};
+#    ${ROOT_INCLUDE_DIRS};
+#    ${HIREDIS_HEADER};
+#    ${REDIS_PLUS_PLUS_HEADER};
+#    ${CMAKE_SOURCE_DIR}/unpacker
+#)
+#
+#target_link_directories(${EXEC} PUBLIC
+#    ${Boost_LIBRARY_DIRS}; 
+#    ${FairMQ_LIBDIR};
+#    ${ROOT_LIBRARIES};
+#)
+#
+#if ((FairMQ_VERSION VERSION_GREATER_EQUAL 1.8.0)
+#  AND (FairMQ_VERSION VERSION_LESS_EQUAL 1.8.9))
+#  target_link_libraries(${EXEC} PUBLIC 
+#    ${Boost_LIBRARIES};  
+#    fairmq
+#    FairLogger;
+#    ${ROOT_LIBRARIES};
+#    ${HIREDIS_LIB};
+#    ${REDIS_PLUS_PLUS_LIB};
+#    NestdaqUnpacker;
+#    TFSlicerUnpacker;
+#  )
+#elseif (((FairMQ_VERSION VERSION_GREATER_EQUAL 1.4.55)
+#  AND (FairMQ_VERSION VERSION_LESS_EQUAL 1.4.56))
+#  OR (FairMQ_VERSION VERSION_EQUAL 1.5.0))  
+#  target_link_libraries(${EXEC} PUBLIC 
+#    ${Boost_LIBRARIES};  
+#    FairMQ;
+#    FairMQStateMachine;
+#    FairLogger;
+#    ${ROOT_LIBRARIES};
+#    ${HIREDIS_LIB};
+#    ${REDIS_PLUS_PLUS_LIB};
+#    NestdaqUnpacker;
+#  )
+#else()
+#    message(FATAL_ERROR "Unsupported FairMQ version ${FairMQ_VERSION}")
+#endif()
+#
+#install(TARGETS ${EXEC};
+#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#    #RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+#    RUNTIME DESTINATION ${INSTALL_BINDIR}
+#)
+#
+#endforeach()
 
 #================================================================================
 add_subdirectory(utility)
 add_subdirectory(emulator)
 add_subdirectory(sqlite)
+add_subdirectory(unpacker)
+add_subdirectory(sub/NestdaqAnalyzer)
