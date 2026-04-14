@@ -25,3 +25,6 @@ cd build
 make
 make install
 ```
+
+https://www.rcnp.osaka-u.ac.jp/~spadi/wiki/?SPADI-A+DAQ+マニュアル/ソフトウェア/ソフトウェアのインストール/NestDAQ
+を参考にパスは適当に書き換えてください。
