@@ -99,7 +99,8 @@ void TimeFrameBuilder::TFBFailDump(std::vector<STFBuffer> &tfBuf, uint32_t stfId
 #else
     std::cout << "#D TFB Fail. TFid: " << stfId << "(0x" << std::hex << stfId << "), "
         << std::dec << "N: " << femid.size() << "/" << fNumSource << ", FEid:";
-    for (auto & i : femid) std::cout << " " << (i & 0xff);
+//    for (auto & i : femid) std::cout << " " << (i & 0xff);
+    for (auto & i : femid) std::cout << " " << ((i >> 8) & 0xff) << "." << (i & 0xff);
     std::cout << std::endl;
 #endif
 

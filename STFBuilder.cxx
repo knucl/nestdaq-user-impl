@@ -76,15 +76,15 @@ void AmQStrTdcSTFBuilder::BuildFrame(FairMQMessagePtr& msg, int index)
 
 	//	LOG(warn) << std::hex << "raw = " << word->raw << std::dec << std::endl;
 
-        if (!isHeadValid) {
-            static int limit_counter = 0;
-	    if (limit_counter < 10) {
-                LOG(warn)   << " " << i << " " << offset << " unknown head = " << std::hex << static_cast<uint16_t>(h)
-			    << " " << word->raw << std::dec << std::endl;
-	        limit_counter++;
-	    }
-	    //	    continue;
-        }
+//        if (!isHeadValid) {
+//            static int limit_counter = 0;
+//	    if (limit_counter < 10) {
+//                LOG(warn)   << " " << i << " " << offset << " unknown head = " << std::hex << static_cast<uint16_t>(h)
+//			    << " " << word->raw << std::dec << std::endl;
+//	        limit_counter++;
+//	    }
+//	    //	    continue;
+//        }
 
 	// in case of one delimiter...
 	
