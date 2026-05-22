@@ -249,6 +249,89 @@ foreach(lvar IN ITEMS
 endforeach()
 
 #==============================================================================
+#    OnlineAnalysisTFBuilder
+#==============================================================================
+message(STATUS ">>> Adding    OnlineAnalysisTFBuilder target")
+add_executable(    OnlineAnalysisTFBuilder
+       OnlineAnalysisTFBuilder.cxx
+    /home/oper/spadi/decoder/NestdaqUnpacker/src/LeafDecoder.cc
+    /home/oper/spadi/decoder/NestdaqUnpacker/src/LeafProcessor.cc
+    /home/oper/spadi/decoder/NestdaqUnpacker/src/NodeHeaderDecoder.cc
+    /home/oper/spadi/decoder/NestdaqUnpacker/src/NodeUnpacker.cc
+)
+
+target_include_directories(    OnlineAnalysisTFBuilder PUBLIC
+    ${Boost_INCLUDE_DIRS}
+    ${FairMQ_INCDIR}
+    ${ROOT_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}
+    /home/oper/spadi/decoder/NestdaqUnpacker/src
+    /home/oper/spadi/decoder/NestdaqAnalyzer/NestdaqTFSlicer
+    ${fmt_INCDIR}
+)
+
+target_link_directories(    OnlineAnalysisTFBuilder PUBLIC
+    ${Boost_LIBRARY_DIRS}
+    ${FairMQ_LIBDIR}
+)
+
+target_link_libraries(    OnlineAnalysisTFBuilder PUBLIC
+    ${Boost_LIBRARIES}
+    fairmq
+    FairLogger
+    Utility
+    ${ROOT_LIBRARIES}
+)
+
+message(STATUS ">>> Installing target:    OnlineAnalysisTFBuilder")
+install(TARGETS
+       OnlineAnalysisTFBuilder
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+#==============================================================================
+#    OnlineAnalysisSlicer
+#==============================================================================
+add_executable(    OnlineAnalysisSlicer
+       OnlineAnalysisSlicer.cxx
+    /home/oper/spadi/decoder/NestdaqUnpacker/src/LeafDecoder.cc
+    /home/oper/spadi/decoder/NestdaqUnpacker/src/LeafProcessor.cc
+    /home/oper/spadi/decoder/NestdaqUnpacker/src/NodeHeaderDecoder.cc
+    /home/oper/spadi/decoder/NestdaqUnpacker/src/NodeUnpacker.cc
+    /home/oper/spadi/decoder/NestdaqAnalyzer/NestdaqTFSlicer/TFSlicerUnpacker.cxx
+)
+
+target_include_directories(    OnlineAnalysisSlicer PUBLIC
+    ${Boost_INCLUDE_DIRS}
+    ${FairMQ_INCDIR}
+    ${ROOT_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}
+    /home/oper/spadi/decoder/NestdaqUnpacker/src
+    /home/oper/spadi/decoder/NestdaqAnalyzer/NestdaqTFSlicer
+    ${fmt_INCDIR}
+)
+
+target_link_directories(    OnlineAnalysisSlicer PUBLIC
+    ${Boost_LIBRARY_DIRS}
+    ${FairMQ_LIBDIR}
+)
+
+target_link_libraries(    OnlineAnalysisSlicer PUBLIC
+    ${Boost_LIBRARIES}
+    fairmq
+    FairLogger
+    Utility
+    ${ROOT_LIBRARIES}
+)
+
+install(TARGETS
+       OnlineAnalysisSlicer
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+
+
+#==============================================================================
 # AmQStrSampler (for the read-out of AmQ)
 #==============================================================================
 add_executable(AmQStrTdcSampler
@@ -468,6 +551,6 @@ endforeach()
 add_subdirectory(utility)
 add_subdirectory(emulator)
 add_subdirectory(sqlite)
-add_subdirectory(unpacker)
-add_subdirectory(sub/NestdaqAnalyzer)
-add_subdirectory(sub/NestDAQ-HbdMonitor)
+# add_subdirectory(unpacker)
+# add_subdirectory(sub/NestdaqAnalyzer)
+# add_subdirectory(sub/NestDAQ-HbdMonitor)
