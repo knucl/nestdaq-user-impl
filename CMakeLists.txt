@@ -168,6 +168,21 @@ find_path(UHBOOK_HEADER uhbook.cxx ../uhbook/)
 message(STATUS "UHBOOK_HEADER:    ${UHBOOK_HEADER}")
 #message(STATUS "UHBOOK_LIB:       ${UHBOOK_LIB}")
 
+# ---------- add NestdaqUnpacker dependency ---------
+find_path(NESTDAQ_UNPACKER_DIR LeafDecoder.cc
+    HINTS ${CMAKE_PREFIX_PATH}
+    PATH_SUFFIXES decoder/NestdaqUnpacker/src
+)
+message(STATUS "NESTDAQ_UNPACKER_DIR: ${NESTDAQ_UNPACKER_DIR}")
+
+# ---------- add NestdaqAnalyzer dependency ---------
+find_path(NESTDAQ_TFSLICER_DIR TFSlicerUnpacker.h
+    HINTS ${CMAKE_PREFIX_PATH}
+    PATH_SUFFIXES decoder/NestdaqAnalyzer/NestdaqTFSlicer
+)
+message(STATUS "NESTDAQ_TFSLICER_DIR: ${NESTDAQ_TFSLICER_DIR}")
+
+
 #==============================================================================
 # Sampler(for Emulator), Sink, FileSink, STFBuilder, TimeFrameBuilder
 #==============================================================================
@@ -254,10 +269,10 @@ endforeach()
 message(STATUS ">>> Adding    OnlineAnalysisTFBuilder target")
 add_executable(    OnlineAnalysisTFBuilder
        OnlineAnalysisTFBuilder.cxx
-    /home/oper/spadi/decoder/NestdaqUnpacker/src/LeafDecoder.cc
-    /home/oper/spadi/decoder/NestdaqUnpacker/src/LeafProcessor.cc
-    /home/oper/spadi/decoder/NestdaqUnpacker/src/NodeHeaderDecoder.cc
-    /home/oper/spadi/decoder/NestdaqUnpacker/src/NodeUnpacker.cc
+    ${NESTDAQ_UNPACKER_DIR}/LeafDecoder.cc
+    ${NESTDAQ_UNPACKER_DIR}/LeafProcessor.cc
+    ${NESTDAQ_UNPACKER_DIR}/NodeHeaderDecoder.cc
+    ${NESTDAQ_UNPACKER_DIR}/NodeUnpacker.cc
 )
 
 target_include_directories(    OnlineAnalysisTFBuilder PUBLIC
@@ -265,8 +280,8 @@ target_include_directories(    OnlineAnalysisTFBuilder PUBLIC
     ${FairMQ_INCDIR}
     ${ROOT_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}
-    /home/oper/spadi/decoder/NestdaqUnpacker/src
-    /home/oper/spadi/decoder/NestdaqAnalyzer/NestdaqTFSlicer
+    ${NESTDAQ_UNPACKER_DIR}
+    ${NESTDAQ_TFSLICER_DIR}
     ${fmt_INCDIR}
 )
 
@@ -294,11 +309,11 @@ install(TARGETS
 #==============================================================================
 add_executable(    OnlineAnalysisSlicer
        OnlineAnalysisSlicer.cxx
-    /home/oper/spadi/decoder/NestdaqUnpacker/src/LeafDecoder.cc
-    /home/oper/spadi/decoder/NestdaqUnpacker/src/LeafProcessor.cc
-    /home/oper/spadi/decoder/NestdaqUnpacker/src/NodeHeaderDecoder.cc
-    /home/oper/spadi/decoder/NestdaqUnpacker/src/NodeUnpacker.cc
-    /home/oper/spadi/decoder/NestdaqAnalyzer/NestdaqTFSlicer/TFSlicerUnpacker.cxx
+    ${NESTDAQ_UNPACKER_DIR}/LeafDecoder.cc
+    ${NESTDAQ_UNPACKER_DIR}/LeafProcessor.cc
+    ${NESTDAQ_UNPACKER_DIR}/NodeHeaderDecoder.cc
+    ${NESTDAQ_UNPACKER_DIR}/NodeUnpacker.cc
+    ${NESTDAQ_TFSLICER_DIR}/TFSlicerUnpacker.cxx
 )
 
 target_include_directories(    OnlineAnalysisSlicer PUBLIC
@@ -306,8 +321,8 @@ target_include_directories(    OnlineAnalysisSlicer PUBLIC
     ${FairMQ_INCDIR}
     ${ROOT_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}
-    /home/oper/spadi/decoder/NestdaqUnpacker/src
-    /home/oper/spadi/decoder/NestdaqAnalyzer/NestdaqTFSlicer
+    ${NESTDAQ_UNPACKER_DIR}
+    ${NESTDAQ_TFSLICER_DIR}
     ${fmt_INCDIR}
 )
 
