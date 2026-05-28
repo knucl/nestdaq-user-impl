@@ -176,6 +176,9 @@ struct tdc64 {
 	int flag;
 	int spill;
 	int hartbeat;
+  // streaming RM
+  int spill_id;
+  int event_id;
 };
 
 namespace v1 {
@@ -183,13 +186,17 @@ static constexpr unsigned int T_TDC       = (0x2c >> 2);
 static constexpr unsigned int T_HB        = (0x70 >> 2);
 static constexpr unsigned int T_SPL_START = (0x60 >> 2);
 static constexpr unsigned int T_SPL_END   = (0x50 >> 2);
+// streaming RM
+static constexpr unsigned int T_STR_RM    = (0x24 >> 2);
 
 int Unpack(uint64_t data, struct tdc64 *tdc)
 {
 	//unsigned char *cdata = reinterpret_cast<unsigned char *>(&data);
 
 	tdc->type = (data & 0xfc00'0000'0000'0000) >> 58;
-	if (tdc->type == T_TDC) {
+	tdc->spill_id = -1;
+  tdc->event_id = -1;
+  if (tdc->type == T_TDC) {
 		tdc->ch	= (data & 0x03f8'0000'0000'0000) >> 51;
 		tdc->tot      = (data & 0x0007'f800'0000'0000) >> 43;
 		tdc->tdc      = (data & 0x0000'07ff'ff00'0000) >> 24;
@@ -215,7 +222,18 @@ int Unpack(uint64_t data, struct tdc64 *tdc)
 		tdc->flag     = (data & 0x03ff'0000'0000'0000) >> 48;
 		tdc->spill    = (data & 0x0000'ff00'0000'0000) >> 40;
 		tdc->hartbeat = (data & 0x0000'00ff'ff00'0000) >> 24;
-	} else {
+	} else
+	if (tdc->type == T_STR_RM) {
+    tdc->ch       = (data >> 50) & 0xff;
+    tdc->spill_id = (data >> 42) & 0xff;
+    tdc->event_id = (data >> 30) & 0xfff;
+    tdc->tdc      = (data >> 14) & 0xffff;
+    tdc->tdc4n    = (data >> 13) & 0x1ffff;
+    tdc->tot      = -1;
+		tdc->flag     = -1;
+		tdc->spill    = -1;
+		tdc->hartbeat = -1;
+  } else {
 		tdc->ch	= -1;
 		tdc->tot      = -1;
 		tdc->tdc      = -1;
@@ -291,7 +309,6 @@ int Unpack(uint64_t data, struct tdc64 *tdc)
 } //namespace v2
 
 } //namespace TDC64L
- 
 
 namespace TDC64H_V3 {
 
@@ -393,6 +410,9 @@ struct tdc64 {
 	int genesize;
 	int transize;
 	int hartbeat;
+  // streaming RM
+  int spill_id;
+  int event_id;
 };
 
 inline namespace v2 {
@@ -408,13 +428,17 @@ static constexpr unsigned int T_HB1        = (0x70 >> 2);
 static constexpr unsigned int T_HB2        = (0x78 >> 2);
 static constexpr unsigned int T_SPL_START  = (0x60 >> 2);
 static constexpr unsigned int T_SPL_END    = (0x50 >> 2);
+// streaming RM
+static constexpr unsigned int T_STR_RM     = (0x24 >> 2);
 
 int Unpack(uint64_t data, struct tdc64 *tdc)
 {
 	//unsigned char *cdata = reinterpret_cast<unsigned char *>(&data);
 
 	tdc->type = (data & 0xfc00'0000'0000'0000) >> 58;
-	if (  (tdc->type == T_TDC_L)     || (tdc->type == T_TDC_T)
+	tdc->spill_id = -1;
+  tdc->event_id = -1;
+  if (  (tdc->type == T_TDC_L)     || (tdc->type == T_TDC_T)
 	   || (tdc->type == T_THR1_START) || (tdc->type == T_THR1_END)
 	   || (tdc->type == T_THR2_START) || (tdc->type == T_THR2_END)  ) {
 		tdc->ch	      = (data & 0x03fc'0000'0000'0000) >> 50;
@@ -426,7 +450,7 @@ int Unpack(uint64_t data, struct tdc64 *tdc)
 		tdc->genesize = -1;
 		tdc->transize = -1;
 		tdc->hartbeat = -1;
-	} else
+  } else
 	if (tdc->type == T_HB1) {
 		tdc->ch	      = -1;
 		tdc->tot      = -1;
@@ -448,6 +472,19 @@ int Unpack(uint64_t data, struct tdc64 *tdc)
 		tdc->hartbeat = -1;
 		tdc->genesize   = (data & 0x0000'00ff'fff0'0000) >> 20;
 		tdc->transize   = (data & 0x0000'0000'000f'ffff) >>  0;
+	} else
+	if (tdc->type == T_STR_RM) {
+		tdc->ch	      = (data >> 50) & 0xff;
+		tdc->spill_id = (data >> 42) & 0xff;
+    tdc->event_id = (data >> 30) & 0xfff;
+    tdc->tdc      = (data >> 14) & 0xffff;
+		tdc->tdc4n    = (data >> 13) & 0x1ffff;
+		tdc->tot      = -1;
+		tdc->flag     = -1;
+		tdc->toffset  = -1;
+		tdc->hartbeat = -1;
+		tdc->genesize = -1;
+		tdc->transize = -1;
 	} else
 	{
 		tdc->ch       = -1;
