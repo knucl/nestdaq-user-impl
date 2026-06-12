@@ -168,19 +168,19 @@ find_path(UHBOOK_HEADER uhbook.cxx ../uhbook/)
 message(STATUS "UHBOOK_HEADER:    ${UHBOOK_HEADER}")
 #message(STATUS "UHBOOK_LIB:       ${UHBOOK_LIB}")
 
-# ---------- add NestdaqUnpacker dependency ---------
-find_path(NESTDAQ_UNPACKER_DIR LeafDecoder.cc
-    HINTS ${CMAKE_PREFIX_PATH}
-    PATH_SUFFIXES decoder/NestdaqUnpacker/src
-)
-message(STATUS "NESTDAQ_UNPACKER_DIR: ${NESTDAQ_UNPACKER_DIR}")
-
-# ---------- add NestdaqAnalyzer dependency ---------
-find_path(NESTDAQ_TFSLICER_DIR TFSlicerUnpacker.h
-    HINTS ${CMAKE_PREFIX_PATH}
-    PATH_SUFFIXES decoder/NestdaqAnalyzer/NestdaqTFSlicer
-)
-message(STATUS "NESTDAQ_TFSLICER_DIR: ${NESTDAQ_TFSLICER_DIR}")
+## ---------- add NestdaqUnpacker dependency ---------
+#find_path(NESTDAQ_UNPACKER_DIR LeafDecoder.cc
+#    HINTS ${CMAKE_PREFIX_PATH}
+#    PATH_SUFFIXES decoder/NestdaqUnpacker/src
+#)
+#message(STATUS "NESTDAQ_UNPACKER_DIR: ${NESTDAQ_UNPACKER_DIR}")
+#
+## ---------- add NestdaqAnalyzer dependency ---------
+#find_path(NESTDAQ_TFSLICER_DIR TFSlicerUnpacker.h
+#    HINTS ${CMAKE_PREFIX_PATH}
+#    PATH_SUFFIXES decoder/NestdaqAnalyzer/NestdaqTFSlicer
+#)
+#message(STATUS "NESTDAQ_TFSLICER_DIR: ${NESTDAQ_TFSLICER_DIR}")
 
 
 #==============================================================================
@@ -263,86 +263,86 @@ foreach(lvar IN ITEMS
   )
 endforeach()
 
-#==============================================================================
-#    OnlineAnalysisTFBuilder
-#==============================================================================
-message(STATUS ">>> Adding    OnlineAnalysisTFBuilder target")
-add_executable(    OnlineAnalysisTFBuilder
-       OnlineAnalysisTFBuilder.cxx
-    ${NESTDAQ_UNPACKER_DIR}/LeafDecoder.cc
-    ${NESTDAQ_UNPACKER_DIR}/LeafProcessor.cc
-    ${NESTDAQ_UNPACKER_DIR}/NodeHeaderDecoder.cc
-    ${NESTDAQ_UNPACKER_DIR}/NodeUnpacker.cc
-)
-
-target_include_directories(    OnlineAnalysisTFBuilder PUBLIC
-    ${Boost_INCLUDE_DIRS}
-    ${FairMQ_INCDIR}
-    ${ROOT_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}
-    ${NESTDAQ_UNPACKER_DIR}
-    ${NESTDAQ_TFSLICER_DIR}
-    ${fmt_INCDIR}
-)
-
-target_link_directories(    OnlineAnalysisTFBuilder PUBLIC
-    ${Boost_LIBRARY_DIRS}
-    ${FairMQ_LIBDIR}
-)
-
-target_link_libraries(    OnlineAnalysisTFBuilder PUBLIC
-    ${Boost_LIBRARIES}
-    fairmq
-    FairLogger
-    Utility
-    ${ROOT_LIBRARIES}
-)
-
-message(STATUS ">>> Installing target:    OnlineAnalysisTFBuilder")
-install(TARGETS
-       OnlineAnalysisTFBuilder
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
-#==============================================================================
-#    OnlineAnalysisSlicer
-#==============================================================================
-add_executable(    OnlineAnalysisSlicer
-       OnlineAnalysisSlicer.cxx
-    ${NESTDAQ_UNPACKER_DIR}/LeafDecoder.cc
-    ${NESTDAQ_UNPACKER_DIR}/LeafProcessor.cc
-    ${NESTDAQ_UNPACKER_DIR}/NodeHeaderDecoder.cc
-    ${NESTDAQ_UNPACKER_DIR}/NodeUnpacker.cc
-    ${NESTDAQ_TFSLICER_DIR}/TFSlicerUnpacker.cxx
-)
-
-target_include_directories(    OnlineAnalysisSlicer PUBLIC
-    ${Boost_INCLUDE_DIRS}
-    ${FairMQ_INCDIR}
-    ${ROOT_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}
-    ${NESTDAQ_UNPACKER_DIR}
-    ${NESTDAQ_TFSLICER_DIR}
-    ${fmt_INCDIR}
-)
-
-target_link_directories(    OnlineAnalysisSlicer PUBLIC
-    ${Boost_LIBRARY_DIRS}
-    ${FairMQ_LIBDIR}
-)
-
-target_link_libraries(    OnlineAnalysisSlicer PUBLIC
-    ${Boost_LIBRARIES}
-    fairmq
-    FairLogger
-    Utility
-    ${ROOT_LIBRARIES}
-)
-
-install(TARGETS
-       OnlineAnalysisSlicer
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+##==============================================================================
+##    OnlineAnalysisTFBuilder
+##==============================================================================
+#message(STATUS ">>> Adding    OnlineAnalysisTFBuilder target")
+#add_executable(    OnlineAnalysisTFBuilder
+#       OnlineAnalysisTFBuilder.cxx
+#    ${NESTDAQ_UNPACKER_DIR}/LeafDecoder.cc
+#    ${NESTDAQ_UNPACKER_DIR}/LeafProcessor.cc
+#    ${NESTDAQ_UNPACKER_DIR}/NodeHeaderDecoder.cc
+#    ${NESTDAQ_UNPACKER_DIR}/NodeUnpacker.cc
+#)
+#
+#target_include_directories(    OnlineAnalysisTFBuilder PUBLIC
+#    ${Boost_INCLUDE_DIRS}
+#    ${FairMQ_INCDIR}
+#    ${ROOT_INCLUDE_DIRS}
+#    ${CMAKE_SOURCE_DIR}
+#    ${NESTDAQ_UNPACKER_DIR}
+#    ${NESTDAQ_TFSLICER_DIR}
+#    ${fmt_INCDIR}
+#)
+#
+#target_link_directories(    OnlineAnalysisTFBuilder PUBLIC
+#    ${Boost_LIBRARY_DIRS}
+#    ${FairMQ_LIBDIR}
+#)
+#
+#target_link_libraries(    OnlineAnalysisTFBuilder PUBLIC
+#    ${Boost_LIBRARIES}
+#    fairmq
+#    FairLogger
+#    Utility
+#    ${ROOT_LIBRARIES}
+#)
+#
+#message(STATUS ">>> Installing target:    OnlineAnalysisTFBuilder")
+#install(TARGETS
+#       OnlineAnalysisTFBuilder
+#    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+#)
+#
+##==============================================================================
+##    OnlineAnalysisSlicer
+##==============================================================================
+#add_executable(    OnlineAnalysisSlicer
+#       OnlineAnalysisSlicer.cxx
+#    ${NESTDAQ_UNPACKER_DIR}/LeafDecoder.cc
+#    ${NESTDAQ_UNPACKER_DIR}/LeafProcessor.cc
+#    ${NESTDAQ_UNPACKER_DIR}/NodeHeaderDecoder.cc
+#    ${NESTDAQ_UNPACKER_DIR}/NodeUnpacker.cc
+#    ${NESTDAQ_TFSLICER_DIR}/TFSlicerUnpacker.cxx
+#)
+#
+#target_include_directories(    OnlineAnalysisSlicer PUBLIC
+#    ${Boost_INCLUDE_DIRS}
+#    ${FairMQ_INCDIR}
+#    ${ROOT_INCLUDE_DIRS}
+#    ${CMAKE_SOURCE_DIR}
+#    ${NESTDAQ_UNPACKER_DIR}
+#    ${NESTDAQ_TFSLICER_DIR}
+#    ${fmt_INCDIR}
+#)
+#
+#target_link_directories(    OnlineAnalysisSlicer PUBLIC
+#    ${Boost_LIBRARY_DIRS}
+#    ${FairMQ_LIBDIR}
+#)
+#
+#target_link_libraries(    OnlineAnalysisSlicer PUBLIC
+#    ${Boost_LIBRARIES}
+#    fairmq
+#    FairLogger
+#    Utility
+#    ${ROOT_LIBRARIES}
+#)
+#
+#install(TARGETS
+#       OnlineAnalysisSlicer
+#    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+#)
 
 
 
@@ -566,6 +566,6 @@ endforeach()
 add_subdirectory(utility)
 add_subdirectory(emulator)
 add_subdirectory(sqlite)
-# add_subdirectory(unpacker)
-# add_subdirectory(sub/NestdaqAnalyzer)
-# add_subdirectory(sub/NestDAQ-HbdMonitor)
+add_subdirectory(unpacker)
+add_subdirectory(sub/NestdaqAnalyzer)
+add_subdirectory(sub/NestDAQ-HbdMonitor)
