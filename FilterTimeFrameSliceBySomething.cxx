@@ -28,26 +28,39 @@ FilterTimeFrameSliceBySomething::FilterTimeFrameSliceBySomething()
 
 bool FilterTimeFrameSliceBySomething::ProcessSlice(TTF& tf)
 {
-#if 0
-   int doKeep = false;
-
-   if (tf[0]->GetHeader()->femid == /* some module */) {
-      auto& hbf = tf[0]->at(0)); // 
-      uint64_t nData = hbf->GetNumData();
-      for (int i = 0; i < nData; ++i) {
-         // unpack data
-         // Unpack(hbf->UncheckedAt(i),tdc);
-         //
+  for (const auto& stf : tf) {
+    auto hr_tdcs = std::vector<TDC64H::tdc64>();
+    auto lr_tdcs = std::vector<TDC64L::tdc64>();
+    auto header = stf->GetHeader();
+    auto ip = header->femId;
+    auto& hbf = stf->at(0);
+    auto n_data = hbf->GetNumData();
+    LOG(info) << "nData: " << n_data;
+    for (int i = 0; i < n_data; ++i) {
+      auto fem_type = header->femType;
+      if (fem_type == SubTimeFrame::TDC64H_V3) {
+        hr_tdcs.emplace_back();
+        auto flag = TDC64H::Unpack(hbf->UncheckedAt(i), &hr_tdcs.back());
+        if (flag != TDC64H::T_TDC) {
+          hr_tdcs.pop_back();
+        }
+      } else if (fem_type == SubTimeFrame::TDC64L_V3) {
+        lr_tdcs.emplace_back();
+        auto flag = TDC64L::Unpack(hbf->UncheckedAt(i), &lr_tdcs.back());
+        if (flag != TDC64L::T_TDC) {
+          lr_tdcs.pop_back();
+        }
       }
-      // judge
-      doKeep = true;
-   }
+    }
+for (const auto& tdc : hr_tdcs) {
+  LOG(INFO) << "HR-TDC ch: " << tdc.ch << ", tot: " << tdc.tot;
+}
+for (const auto& tdc : lr_tdcs) {
+  LOG(INFO) << "LR-TDC ch: " << tdc.ch << ", tot: " << tdc.tot;
+}
+  }
 
-   if (!doKeep) {
-      return false;
-   }
-#endif   
-   return true;
+  return true;
 }
 
 
