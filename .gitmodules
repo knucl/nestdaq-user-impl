@@ -7,3 +7,6 @@
 [submodule "sub/NestDAQ-HbdMonitor"]
 	path = sub/NestDAQ-HbdMonitor
 	url = git@github.com:knucl/NestDAQ-HbdMonitor
+[submodule "sub/channel-map"]
+	path = sub/channel-map
+	url = git@github.com:knucl/channel-map
