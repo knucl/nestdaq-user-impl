@@ -48,7 +48,7 @@ protected:
 
    virtual bool ParseMessages(FairMQParts& inParts);
 
-   virtual bool ProcessSlice(TTF& ) { return true; }
+   virtual bool ProcessSlice(TTF&, const Filter::TrgTime& ) { return true; }
    
    std::string fInputChannelName;
    std::string fOutputChannelName;
@@ -64,7 +64,7 @@ protected:
 
    std::vector<TTF> fTFs; // time frame
 //   std::vector<TLF> fLFs; // logic filter
-
+	 std::vector<Filter::TrgTime> fSliceTrgTimes;
 
 
    // output

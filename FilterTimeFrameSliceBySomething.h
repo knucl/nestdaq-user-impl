@@ -31,7 +31,7 @@ public:
    FilterTimeFrameSliceBySomething();
    virtual ~FilterTimeFrameSliceBySomething() override = default;
 
-   virtual bool ProcessSlice(TTF& ) override;
+   virtual bool ProcessSlice(TTF&, const Filter::TrgTime& ) override;
 
 };
 

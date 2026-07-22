@@ -26,7 +26,7 @@ FilterTimeFrameSliceBySomething::FilterTimeFrameSliceBySomething()
 {
 }
 
-bool FilterTimeFrameSliceBySomething::ProcessSlice(TTF& tf)
+bool FilterTimeFrameSliceBySomething::ProcessSlice(TTF& tf, const Filter::TrgTime& tt)
 {
   for (const auto& stf : tf) {
     auto hr_tdcs = std::vector<TDC64H::tdc64>();
@@ -35,7 +35,7 @@ bool FilterTimeFrameSliceBySomething::ProcessSlice(TTF& tf)
     auto ip = header->femId;
     auto& hbf = stf->at(0);
     auto n_data = hbf->GetNumData();
-    LOG(info) << "nData: " << n_data;
+//LOG(info) << "nData: " << n_data;
     for (int i = 0; i < n_data; ++i) {
       auto fem_type = header->femType;
       if (fem_type == SubTimeFrame::TDC64H_V3) {
@@ -52,12 +52,13 @@ bool FilterTimeFrameSliceBySomething::ProcessSlice(TTF& tf)
         }
       }
     }
-for (const auto& tdc : hr_tdcs) {
-  LOG(INFO) << "HR-TDC ch: " << tdc.ch << ", tot: " << tdc.tot;
-}
-for (const auto& tdc : lr_tdcs) {
-  LOG(INFO) << "LR-TDC ch: " << tdc.ch << ", tot: " << tdc.tot;
-}
+//LOG(INFO) << "trigger time: " << tt.time << ", type: " << tt.type;
+//for (const auto& tdc : hr_tdcs) {
+//  LOG(INFO) << "HR-TDC ch: " << tdc.ch << ", tot: " << tdc.tot;
+//}
+//for (const auto& tdc : lr_tdcs) {
+//  LOG(INFO) << "LR-TDC ch: " << tdc.ch << ", tot: " << tdc.tot;
+//}
   }
 
   return true;

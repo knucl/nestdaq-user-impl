@@ -50,7 +50,8 @@ bool FilterTimeFrameSliceABC::ConditionalRun()
       tf.Clear();
    }                
    fTFs.clear();
-   
+	 fSliceTrgTimes.clear();   
+
    FairMQParts inParts;
    FairMQParts outParts;
    if (Receive(inParts, fInputChannelName,0,1) <= 0) return true;
@@ -75,7 +76,11 @@ bool FilterTimeFrameSliceABC::ConditionalRun()
          LOG(info) << " META information";
          doKeep = true;
       } else {
-         doKeep = ProcessSlice(tf);
+         if (tf.GetHeader()->type == TimeFrame::META) {
+            doKeep = true;
+         } else if (tf.GetHeader()->type == TimeFrame::SLICE) {
+            doKeep = ProcessSlice(tf, fSliceTrgTimes[ifrm]);
+         }
       }
       if (!doKeep) continue;
       tf.GetHeader()->length = tf.GetRealLength();
@@ -128,7 +133,9 @@ bool FilterTimeFrameSliceABC::ParseMessages(FairMQParts& inParts)
    int stfIdx = 0; // array index for stf
    int hbfIdx = 0; // array index for hbf
    int fltIdx = 0; // array index for flt
-   TTF *timeFrame = nullptr;
+	 int slcIdx = 0; // array index for trgtime
+   std::vector<Filter::TrgTime> currentTrgTimes;
+	 TTF *timeFrame = nullptr;
    Header<struct TimeFrame::Header> tfh;
    Header<struct Filter::Header> lfh;
    Header<struct Filter::TrgTimeHeader> tth;
@@ -143,8 +150,17 @@ bool FilterTimeFrameSliceABC::ParseMessages(FairMQParts& inParts)
          if (magic == TimeFrame::MAGIC) {
             // add new timeframe
             fTFs.resize(fTFs.size()+1);
+            fSliceTrgTimes.resize(fSliceTrgTimes.size()+1);
             timeFrame = &(fTFs[fTFs.size() -1]);
             timeFrame->SetHeader(dataptr);
+						const auto tfType = timeFrame->GetHeader()->type;
+						if (tfType == TimeFrame::META) {
+						   currentTrgTimes.clear();
+							 slcIdx = 0;
+					  } else if (tfType == TimeFrame::SLICE) {
+					     fSliceTrgTimes.back() = currentTrgTimes[slcIdx];
+							 ++slcIdx;
+					  }
             stfIdx = -1; // reset stf index
             auto ns = timeFrame->GetHeader()->numSource;
             if (timeFrame->size() < ns) {
@@ -171,9 +187,20 @@ bool FilterTimeFrameSliceABC::ParseMessages(FairMQParts& inParts)
             }
 #endif            
          } else if (magic == Filter::TDC_MAGIC) {
-            // to nothing
             tth.SetHeader(dataptr);
-            dataptr += tth.GetHeader()->length;
+            const auto* header = tth.GetHeader();
+						const auto payloadLength = header->length - header->hLength;
+						const auto numTrgs = lfh.GetHeader()->numTrigs;
+						const char* payload = dataptr + header->hLength;
+						currentTrgTimes.clear();
+						currentTrgTimes.reserve(numTrgs);
+						slcIdx = 0;
+						for (int i = 0; i < numTrgs; ++i) {
+						   Filter::TrgTime trgTime {};
+							 std::memcpy(&trgTime, payload + i * sizeof(Filter::TrgTime), sizeof(Filter::TrgTime));
+							 currentTrgTimes.push_back(trgTime);
+					  }
+						dataptr += header->length;
 #if 0               
             auto& tdcf = *(fLF[fltIdx]);
             tdcf.Set(part.GetData());
