@@ -224,7 +224,7 @@ bool TimeFrameSlicerByLogicTiming::ConditionalRun()
       // check overlap of two neighboring search window
       for (uint32_t iTrig = 0; iTrig < nTrig; ++iTrig) {
          auto trig = lf->UncheckedAt(iTrig).time;
-         auto trigBegin = trig + fOffset[0];
+				 auto trigBegin = trig < abs(fOffset[0]) ? 0 : trig + fOffset[0];
          auto trigEnd   = trig + fOffset[1];
          bool hasOverlapWithNextTrigger = false;
          if (iTrig < nTrig - 1) {
