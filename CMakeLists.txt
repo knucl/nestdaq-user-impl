@@ -182,6 +182,14 @@ message(STATUS "UHBOOK_HEADER:    ${UHBOOK_HEADER}")
 #)
 #message(STATUS "NESTDAQ_TFSLICER_DIR: ${NESTDAQ_TFSLICER_DIR}")
 
+# ---------- add channel-map dependency ---------
+find_package(ChannelMap CONFIG REQUIRED)
+if(TARGET ChannelMap::channel-map)
+  message(STATUS "ChannelMap target exists")
+else()
+  message(STATUS "ChannelMap target does NOT exist")
+endif()
+
 
 #==============================================================================
 # Sampler(for Emulator), Sink, FileSink, STFBuilder, TimeFrameBuilder
@@ -190,11 +198,13 @@ foreach(lvar IN ITEMS
   Sampler; Sink; FileSink; STFBuilder;
   TimeFrameBuilder; TFBFilePlayer; STFBFilePlayer;
   TimeFrameSlicerByLogicTiming;
-  fltcoin; LogicFilter;
+  fltcoin;
+  LogicFilter;
   tfdump;
 # onlinedisplay;
   FilterTimeFrameSliceABC;
   FilterTimeFrameSliceBySomething;
+  FilterTimeFrameSliceByTrack;
   InputRegister;
 #  AmQStrTdcDqm;
   Scaler;
@@ -235,6 +245,8 @@ foreach(lvar IN ITEMS
       stdc++fs;
       AmQTdcModule;
       sqlite3;
+      # custmized by user
+      ChannelMap::ChannelMap;
     )
   elseif (((FairMQ_VERSION VERSION_GREATER_EQUAL 1.4.55)
     AND (FairMQ_VERSION VERSION_LESS_EQUAL 1.4.56))
@@ -251,6 +263,23 @@ foreach(lvar IN ITEMS
       stdc++fs;
       AmQTdcModule;
       sqlite3;
+      # custmized by user
+      ChannelMap::ChannelMap;
+    )
+  elseif ((FairMQ_VERSION VERSION_EQUAL 1.10.0))
+    target_link_libraries(${EXEC} PUBLIC 
+      ${Boost_LIBRARIES};  
+      ${HIREDIS_LIB};
+      ${REDIS_PLUS_PLUS_LIB};
+      ${UHBOOK_LIB};
+      fairmq;
+      FairLogger;
+      Utility;
+      stdc++fs;
+      AmQTdcModule;
+      sqlite3;
+      # custmized by user
+      ChannelMap::ChannelMap;
     )
   else()
     message(FATAL_ERROR "Unsupported FairMQ version ${FairMQ_VERSION}")
@@ -374,6 +403,8 @@ if ((FairMQ_VERSION VERSION_GREATER_EQUAL 1.8.0)
     ${Boost_LIBRARIES};
     Utility;
     sqlite3;
+    # custmized by user
+    ChannelMap::ChannelMap;
   )
 elseif (((FairMQ_VERSION VERSION_GREATER_EQUAL 1.4.55)
   AND (FairMQ_VERSION VERSION_LESS_EQUAL 1.4.56))
@@ -385,6 +416,18 @@ elseif (((FairMQ_VERSION VERSION_GREATER_EQUAL 1.4.55)
     ${Boost_LIBRARIES};
     Utility;
     sqlite3;
+    # custmized by user
+    ChannelMap::ChannelMap;
+  )
+elseif((FairMQ_VERSION VERSION_EQUAL 1.10.0))
+  target_link_libraries(AmQStrTdcSampler  PUBLIC
+    fairmq;
+    FairLogger;
+    ${Boost_LIBRARIES};
+    Utility;
+    sqlite3;
+    # custmized by user
+    ChannelMap::ChannelMap;
   )
 else()
     message(FATAL_ERROR "Unsupported FairMQ version ${FairMQ_VERSION}")
@@ -397,9 +440,9 @@ install(TARGETS
 )
 
 
-#
-#
-#
+
+
+
 
 foreach(lvar IN ITEMS
     TriggerView;
@@ -408,6 +451,7 @@ foreach(lvar IN ITEMS
 set(EXEC ${lvar})
   add_executable(${EXEC} 
   ${EXEC}.cxx;
+  SignalParser.cxx;
 )
 
 target_include_directories(${EXEC} PUBLIC 
@@ -436,6 +480,8 @@ if ((FairMQ_VERSION VERSION_GREATER_EQUAL 1.8.0)
     ${ROOT_LIBRARIES};
     ${HIREDIS_LIB};
     ${REDIS_PLUS_PLUS_LIB};
+    # custmized by user
+    ChannelMap::ChannelMap;
   )
 elseif (((FairMQ_VERSION VERSION_GREATER_EQUAL 1.4.55)
   AND (FairMQ_VERSION VERSION_LESS_EQUAL 1.4.56))
@@ -448,6 +494,19 @@ elseif (((FairMQ_VERSION VERSION_GREATER_EQUAL 1.4.55)
     ${ROOT_LIBRARIES};
     ${HIREDIS_LIB};
     ${REDIS_PLUS_PLUS_LIB};
+    # custmized by user
+    ChannelMap::ChannelMap;
+  )
+elseif ((FairMQ_VERSION VERSION_EQUAL 1.10.0)) 
+  target_link_libraries(${EXEC} PUBLIC 
+    ${Boost_LIBRARIES};  
+    fairmq;
+    FairLogger;
+    ${ROOT_LIBRARIES};
+    ${HIREDIS_LIB};
+    ${REDIS_PLUS_PLUS_LIB};
+    # custmized by user
+    ChannelMap::ChannelMap
   )
 else()
     message(FATAL_ERROR "Unsupported FairMQ version ${FairMQ_VERSION}")
