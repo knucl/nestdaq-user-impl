@@ -481,10 +481,46 @@ bool TimeFrameBuilder::ConditionalRun()
                 << " TFB Successful Ratio: "
                 << std::to_string(successfulRatio) << std::endl;
             #endif
-            fDbMetric->ts_add(
-                fKeyPrefixMetric + "SuccessfulRatio",
-                std::to_string(std::time(nullptr) * 1000),
-                std::to_string(successfulRatio));
+//            fDbMetric->ts_add(
+//                fKeyPrefixMetric + "SuccessfulRatio",
+//                std::to_string(std::time(nullptr) * 1000),
+//                std::to_string(successfulRatio));
+						const auto metricKey = fKeyPrefixMetric + "SuccessfulRatio";
+						const auto metricTimestamp = std::to_string(
+						    std::chrono::duration_cast<std::chrono::milliseconds>(
+						        std::chrono::system_clock::now().time_since_epoch())
+						        .count());
+						const auto metricValue = std::to_string(successfulRatio);
+
+						try {
+						    fDbMetric->ts_add(
+						        metricKey,
+						        metricTimestamp,
+						        metricValue);
+						
+						    LOG(debug)
+						        << "Redis TS.ADD succeeded:"
+						        << " key=" << metricKey
+						        << " timestamp=" << metricTimestamp
+						        << " value=" << metricValue;
+						}
+						catch (const std::exception& e) {
+						    LOG(error)
+						        << "Redis TS.ADD failed:"
+						        << " key=" << metricKey
+						        << " timestamp=" << metricTimestamp
+						        << " value=" << metricValue
+						        << " exception=" << e.what();
+								throw;
+						}
+						catch (...) {
+						    LOG(error)
+						        << "Redis TS.ADD failed with unknown exception:"
+						        << " key=" << metricKey
+						        << " timestamp=" << metricTimestamp
+						        << " value=" << metricValue;
+								throw;
+						}
 
             fNumSccesssfulTFB = 0;
             fNumFailedTFB     = 0;
