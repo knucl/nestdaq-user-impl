@@ -8,6 +8,8 @@
 #include "TH1F.h"
 #include "TH2F.h"
 
+#include <map>
+
 #include "FilterHeader.h"
 #include "GetTriggerInfo.cxx"
 
@@ -263,26 +265,19 @@ void gHistTrigTdc_clear()
 
 void gHistTrig(Filter::TrgTime *pdata, unsigned int len)
 {
-	//std::vector<int> trig_in_hbf;
-	struct trg_tdc trig_in_hbf;
-
-	Filter::TrgTime *top = reinterpret_cast<struct Filter::TrgTime *>(pdata);
-	uint32_t trg_type = trig_in_hbf.trg_type = top->type;
-	if (len < sizeof(struct Filter::TrgTime)) trig_in_hbf.trg_type = 0xffffffff;
+	std::map<uint32_t, struct trg_tdc> triggersByType;
 
 	for (unsigned int i = 0 ; i < len ; i++) {
 		Filter::TrgTime *t = reinterpret_cast<Filter::TrgTime *>(pdata + i);
-		if (t->type == trg_type) {
-			trig_in_hbf.tdc4n.emplace_back(t->time);
-		} else {
-			std::cout << "#E multipule Trigger type in FLT data "
-				<< std::hex << t->type << ":" << trg_type
-				<< std::endl;
-		}
+		auto &trigger = triggersByType[t->type];
+		trigger.trg_type = t->type;
+		trigger.tdc4n.emplace_back(t->time);
 		gHTrig->Fill(t->time);
 	}
 
-	gTrigTdc.emplace_back(trig_in_hbf);
+	for (auto &entry : triggersByType) {
+		gTrigTdc.emplace_back(std::move(entry.second));
+	}
 	gTrigTdc_isvalid = true;
 
 	return;
@@ -343,7 +338,8 @@ void gHistBookTrigWinOne()
 
 	for (unsigned int i = 0 ; i < gTrigTdc.size() ; i++) {
 		for (unsigned int itt = 0 ; itt < gTrigType.size() ; itt++) {
-			if (gTrigTdc[i].trg_type == gTrigType[itt]) {
+			if (Filter::MatchesTrgTimeType(
+				gTrigTdc[i].trg_type, gTrigType[itt])) {
 				for (auto &trg : gTrigTdc[i].tdc4n) {
 					bool is_draw = ((tw_counter++ % tw_pre_factor) == 0);
 					if (is_draw) gH2TrigWindowOne[itt]->Reset();
@@ -403,7 +399,8 @@ void gHistBookTrigWin(fair::mq::MessagePtr& msg, uint32_t id, int type)
 			if ((id == sig.module) && (val_ch == sig.channel)) {
 				for (auto &trigs : gTrigTdc) {
 					for (unsigned int itt = 0 ; itt < gTrigType.size() ; itt++) {
-						if (trigs.trg_type == gTrigType[itt]) {
+						if (Filter::MatchesTrgTimeType(
+							trigs.trg_type, gTrigType[itt])) {
 							for (auto &trg : trigs.tdc4n) {
 								int diff = val_tdc4n - trg;
 								if (std::abs(diff) < 500) {
@@ -514,7 +511,8 @@ void gHistBook(fair::mq::MessagePtr& msg, uint32_t id, int type)
 			if ((id == sig.module) && (val_ch == sig.channel)) {
 				for (auto &trigs : gTrigTdc) {
 					for (unsigned int itt = 0 ; itt < gTrigType.size() ; itt++) {
-						if (trigs.trg_type == gTrigType[itt]) {
+						if (Filter::MatchesTrgTimeType(
+							trigs.trg_type, gTrigType[itt])) {
 							for (auto &trg : trigs.tdc4n) {
 								int diff = val_tdc4n - trg;
 								if (std::abs(diff) < 500) {

@@ -76,3 +76,21 @@ Computational cost depends on number of Subgroups. If your trigger logic has les
 - 同じグループに属するチャンネル/サブグループはORのロジックが自動で組まれます
 - 同じサブグループに属するチャンネルはANDのロジックが自動で組まれます
 - "trigger-expression"はこれまでどおりの記法だが、グループ同士のロジックを記述する
+
+## Trigger OR flags in `TrgTime::type`
+
+The upper 8 bits of `TrgTime::type` remain the record identifier `0xaa`.
+The lower 24 bits indicate which top-level OR terms of
+`trigger-expression` were true at the trigger time. Terms are numbered from
+left to right starting at bit 0. Multiple bits can be set when multiple terms
+are true simultaneously.
+
+For example, with `(0 & 1) | (2 & 3)`:
+
+- bit 0 represents `(0 & 1)`;
+- bit 1 represents `(2 & 3)`;
+- `type == 0xaa000003` means both terms were true.
+
+An expression without a top-level OR is treated as one term and uses bit 0.
+At most 24 top-level OR terms can be represented; LogicFilter rejects a
+configuration containing more than 24 terms.

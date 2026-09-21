@@ -197,7 +197,10 @@ void gHistTrig(Filter::TrgTime *pdata, int len)
 	//Filter::TrgTime *ptrg = reinterpret_cast<Filter::TrgTime *>(pdata);
 	for (int i = 0 ; i < len ; i++) {
 		Filter::TrgTime *t = reinterpret_cast<Filter::TrgTime *>(pdata + i);
-		if (t->type == 0xaa000000) gTrig.push_back(t->time);
+		if (Filter::GetTrgTimeRecordType(t->type)
+			== Filter::TRG_TIME_RECORD_TYPE) {
+			gTrig.push_back(t->time);
+		}
 		gHTrig->Fill(t->time);
 		//std::cout << "type: " << t->trg.type << " time: " << t->trg.time;
 	}

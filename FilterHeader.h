@@ -44,6 +44,36 @@ struct Header {
 };
 
 constexpr unsigned char FLT_TDC_TYPE {0xaa};
+constexpr uint32_t TRG_TIME_RECORD_TYPE_MASK {0xff000000};
+constexpr uint32_t TRG_TIME_OR_FLAGS_MASK   {0x00ffffff};
+constexpr uint32_t TRG_TIME_RECORD_TYPE {
+    static_cast<uint32_t>(FLT_TDC_TYPE) << 24
+};
+
+constexpr uint32_t MakeTrgTimeType(uint32_t orFlags)
+{
+    return TRG_TIME_RECORD_TYPE | (orFlags & TRG_TIME_OR_FLAGS_MASK);
+}
+
+constexpr uint32_t GetTrgTimeRecordType(uint32_t type)
+{
+    return type & TRG_TIME_RECORD_TYPE_MASK;
+}
+
+constexpr uint32_t GetTrgTimeOrFlags(uint32_t type)
+{
+    return type & TRG_TIME_OR_FLAGS_MASK;
+}
+
+// A configured type without OR flags matches every flag combination of the
+// same record type. This keeps existing monitors configured with 0xaa000000
+// compatible with flagged trigger records.
+constexpr bool MatchesTrgTimeType(uint32_t actual, uint32_t configured)
+{
+    return GetTrgTimeRecordType(actual) == GetTrgTimeRecordType(configured)
+        && ((GetTrgTimeOrFlags(configured) == 0) || (actual == configured));
+}
+
 struct TrgTime {
     union {
         struct {

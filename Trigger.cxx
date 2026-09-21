@@ -43,6 +43,7 @@ public:
 	void CleanUpSubTimeRegion(const std::map<uint32_t, uint32_t>& nEntryInSubTimeRegion);
 	uint32_t *GetTimeRegion();
 	uint32_t GetTimeRegionSize();
+	std::vector<uint32_t> *GetHitOrFlags();
 	void Entry(uint32_t, int, int); // fem, ch, offset
 	void Entry(uint32_t, int, int, uint32_t, uint32_t); // fem, ch, offset, leftwidth, rightwidth
 	void EntryTo(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int); // group_id, subgroup_id, iSubTimeRegion, fem, ch, offset
@@ -83,6 +84,7 @@ private:
 	//int fMarkCount = 0;
 	//uint32_t fMarkMask = 0;
 	std::vector<uint32_t> fHits;
+	std::vector<uint32_t> fHitOrFlags;
 	int fMarkLen = 5;
 
 	TriggerMap fTMap;
@@ -120,6 +122,8 @@ void Trigger::InitParam()
 	//fMarkMask = 0;
 	fHits.clear();
 	fHits.resize(0);
+	fHitOrFlags.clear();
+	fHitOrFlags.resize(0);
 	if (fTimeRegion != nullptr) {
 		memset(fTimeRegion, 0, fTimeRegionSize * sizeof(uint32_t));
 	}
@@ -191,6 +195,11 @@ uint32_t *Trigger::GetTimeRegion()
 uint32_t Trigger::GetTimeRegionSize()
 {
 	return fTimeRegionSize;
+}
+
+std::vector<uint32_t> *Trigger::GetHitOrFlags()
+{
+	return &fHitOrFlags;
 }
 
 
@@ -536,6 +545,8 @@ std::vector<uint32_t> *Trigger::Scan()
 	//std::cout << "#D Scan fEntryMask: " << std::hex << fEntryMask << std::endl;
 	fHits.clear();
 	fHits.resize(0);
+	fHitOrFlags.clear();
+	fHitOrFlags.resize(0);
 
 	for (unsigned int i = 0 ; i < fTimeRegionSize - 1; i++) {
 		#if 0
@@ -544,10 +555,12 @@ std::vector<uint32_t> *Trigger::Scan()
 			fHits.emplace_back(i + 1);
 		}
 		#else
-		if ((! fTMap.LookUp(fTimeRegion[i]))
-		 && (fTMap.LookUp(fTimeRegion[i + 1]))) {
-			fHits.emplace_back(i + 1);
-		}
+			if ((! fTMap.LookUp(fTimeRegion[i]))
+			 && (fTMap.LookUp(fTimeRegion[i + 1]))) {
+				fHits.emplace_back(i + 1);
+				fHitOrFlags.emplace_back(
+					fTMap.LookUpOrFlags(fTimeRegion[i + 1]));
+			}
 		#endif
 
 		#if 0

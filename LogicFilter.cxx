@@ -139,6 +139,7 @@ private:
 	int AddFilterMessage(
 		FairMQParts &,
 		std::vector< std::vector<uint32_t> > &,
+		std::vector< std::vector<uint32_t> > &,
 		uint32_t,
 		uint32_t);
 	
@@ -987,6 +988,7 @@ int LogicFilter::BuildHBF(
 int LogicFilter::AddFilterMessage(
 	FairMQParts &outParts,
 	std::vector< std::vector<uint32_t> > &fltdata,
+	std::vector< std::vector<uint32_t> > &fltOrFlags,
 	uint32_t elapse,
 	uint32_t tf_id)
 {
@@ -1001,7 +1003,13 @@ int LogicFilter::AddFilterMessage(
 
 	uint32_t flt_datasize = 0;
 	uint32_t totalhits = 0;
-	for (auto &v : fltdata) {
+	for (size_t imsg = 0; imsg < fltdata.size(); ++imsg) {
+		auto &v = fltdata[imsg];
+		auto &orFlags = fltOrFlags.at(imsg);
+		if (v.size() != orFlags.size()) {
+			throw std::runtime_error(
+				"trigger time and OR flag counts do not match");
+		}
 		flt_datasize += v.size() * sizeof(uint32_t)
 			+ sizeof(struct Filter::TrgTimeHeader);
 		totalhits += v.size();
@@ -1040,7 +1048,9 @@ int LogicFilter::AddFilterMessage(
 	flt_data_len += sizeof(struct Filter::Header);
 
 	//add FLT data
-	for (auto &v : fltdata) {
+	for (size_t imsg = 0; imsg < fltdata.size(); ++imsg) {
+		auto &v = fltdata[imsg];
+		auto &orFlags = fltOrFlags[imsg];
 		//auto trgtdc = std::make_unique<std::vector<uint32_t>>(std::move(v));
 		//outParts.AddPart(MessageUtil::NewMessage(*this, std::move(trgtdc)));
 
@@ -1056,10 +1066,9 @@ int LogicFilter::AddFilterMessage(
 
 		std::vector<uint32_t> vv;
 		for (auto &h : trg_time_header.u32data) vv.emplace_back(h);
-		for (auto &tdc : v) {
-			uint32_t trg_type = 0xaa000000;
-			vv.emplace_back(tdc);
-			vv.emplace_back(trg_type);
+		for (size_t ihit = 0; ihit < v.size(); ++ihit) {
+			vv.emplace_back(v[ihit]);
+			vv.emplace_back(Filter::MakeTrgTimeType(orFlags[ihit]));
 		}
 		//std::cout << "#D fltmsg.size: " << vv.size()
 		//	<< " TrgTime.len: " << trg_time_header.length << std::endl;
@@ -1184,6 +1193,7 @@ bool LogicFilter::ConditionalRun()
 
 		// Trigger processing in unit of HBF
 		std::vector< std::vector<uint32_t> > fltdata;
+		std::vector< std::vector<uint32_t> > fltOrFlags;
 		int totalhits = 0;
 		for (size_t i = 0 ; i < bsize_min ; i++) {
 
@@ -1196,6 +1206,7 @@ bool LogicFilter::ConditionalRun()
 			fTrig->CleanUpSubTimeRegion(fNEntryInSubTimeRegion_LogicFilter);
 			std::vector<uint32_t> *hits = fTrig->Exec(hbf_list);
 			fltdata.emplace_back(*hits);
+			fltOrFlags.emplace_back(*fTrig->GetHitOrFlags());
 			int nhits = hits->size();
 
 			#if 0
@@ -1222,7 +1233,9 @@ bool LogicFilter::ConditionalRun()
 		fOutFile << "ConditionalRun Iterations: " << fIteration << std::endl;
 		for(size_t i=0; i < fltdata.size(); i++){
 			for(size_t ii=0; ii < fltdata[i].size(); ii++){
-				fOutFile << fltdata[i][ii] << std::endl;
+				fOutFile << fltdata[i][ii]
+					<< " or_flags=0x" << std::hex << fltOrFlags[i][ii]
+					<< std::dec << std::endl;
 			}
 		}
 		fIteration++;
@@ -1353,7 +1366,7 @@ bool LogicFilter::ConditionalRun()
 
 		//FilterHeader
 		//tf_len += AddFilterMessage(outParts, fltdata, elapse, tf_tf_id);
-		AddFilterMessage(outParts, fltdata, elapse, tf_tf_id);
+		AddFilterMessage(outParts, fltdata, fltOrFlags, elapse, tf_tf_id);
 
 		//Copy SubTimeFrame
 		unsigned int msg_size = inParts.Size();
