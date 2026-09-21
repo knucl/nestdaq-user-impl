@@ -33,6 +33,16 @@ public:
 
    virtual bool ProcessSlice(TTF&, const Filter::TrgTime& ) override;
 
+protected:
+   void ClearAdditionalFrame() override;
+   uint32_t GetAdditionalFrameLength() const override;
+   void CopyAdditionalFrame(std::vector<uint32_t>& output) override;
+
+private:
+   bool fHasHighLevelFilter {false};
+   Filter::HighLevelFilterHeader fHighLevelHeader {};
+   std::vector<Filter::HighLevelFilter> fHighLevelData;
+
 };
 
 

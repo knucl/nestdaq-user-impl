@@ -60,11 +60,66 @@ bool FilterTimeFrameSliceBySomething::ProcessSlice(TTF& tf, const Filter::TrgTim
 //  LOG(INFO) << "LR-TDC ch: " << tdc.ch << ", tot: " << tdc.tot;
 //}
   }
+// tmp
+  fHasHighLevelFilter = true;
+	
+	Filter::HighLevelFilter result {};
+	result.time = 0xffffffff;
+	result.type = 0xffffffff;
+  fHighLevelData.push_back(result);
+  
+	fHighLevelHeader.magic    = Filter::HIGH_MAGIC;
+  fHighLevelHeader.hLength  = sizeof(Filter::HighLevelFilterHeader);
+  fHighLevelHeader.numTrigs = 1;
+  fHighLevelHeader.trgTime  = tt;
+  fHighLevelHeader.length   = sizeof(Filter::HighLevelFilterHeader) + fHighLevelData.size() * sizeof(Filter::HighLevelFilter);  
 
   return true;
 }
 
+void FilterTimeFrameSliceBySomething::ClearAdditionalFrame()
+{
+   fHasHighLevelFilter = false;
+   fHighLevelHeader = {};
+   fHighLevelData.clear();
+}
 
+uint32_t FilterTimeFrameSliceBySomething::GetAdditionalFrameLength() const
+{
+   if (!fHasHighLevelFilter) {
+      return 0;
+   }
+   return fHighLevelHeader.length;
+}
+
+namespace {
+
+template<class T>
+void AppendObject(std::vector<uint32_t>& output, const T& object)
+{
+  static_assert(std::is_trivially_copyable_v<T>);
+  static_assert(sizeof(T) % sizeof(uint32_t) == 0);
+
+  const std::size_t oldSize  = output.size();
+  const std::size_t numWords = sizeof(T) / sizeof(uint32_t);
+
+  output.resize(oldSize + numWords);
+
+  std::memcpy(output.data() + oldSize, &object, sizeof(T));
+}
+
+} // namespace
+
+void FilterTimeFrameSliceBySomething::CopyAdditionalFrame(std::vector<uint32_t>& output)
+{
+   if (!fHasHighLevelFilter) {
+      return;
+   }
+   AppendObject(output, fHighLevelHeader);
+   for (const auto& data : fHighLevelData) {
+      AppendObject(output, data);
+   }
+}
 
 ////////////////////////////////////////////////////
 // override runDevice

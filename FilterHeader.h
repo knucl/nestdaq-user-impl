@@ -43,6 +43,17 @@ struct Header {
     uint64_t timeUSec    {0};
 };
 
+constexpr unsigned char FLT_TDC_TYPE {0xaa};
+struct TrgTime {
+    union {
+        struct {
+            uint32_t time;
+            uint32_t type;
+        };
+        unsigned char cdata[8]  {0, 0, 0, 0, 0, 0, 0, FLT_TDC_TYPE};
+    };
+};
+
 // " EMITGRT"
 static constexpr uint64_t TDC_MAGIC {0x00454d49'54475254};
 struct TrgTimeHeader {
@@ -58,15 +69,19 @@ struct TrgTimeHeader {
     };
 };
 
-constexpr unsigned char FLT_TDC_TYPE {0xaa};
-struct TrgTime {
-    union {
-        struct {
-            uint32_t time;
-            uint32_t type;
-        };
-        unsigned char cdata[8]  {0, 0, 0, 0, 0, 0, 0, FLT_TDC_TYPE};
-    };
+// " TLFHGIH" : little endian of "HIGHFLT "
+static constexpr uint64_t HIGH_MAGIC {0x20544c46'48474948};
+struct HighLevelFilterHeader {
+    uint64_t magic    {HIGH_MAGIC};
+    uint32_t length   {0};
+    uint16_t hLength  {24};
+    uint16_t numTrigs {0};
+    TrgTime  trgTime  {0};
+};
+
+struct HighLevelFilter {
+    uint32_t time;
+    uint32_t type;
 };
 
 #pragma pack()

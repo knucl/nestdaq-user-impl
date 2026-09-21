@@ -49,7 +49,13 @@ protected:
    virtual bool ParseMessages(FairMQParts& inParts);
 
    virtual bool ProcessSlice(TTF&, const Filter::TrgTime& ) { return true; }
-   
+
+   virtual void ClearAdditionalFrame() {}
+
+   virtual uint32_t GetAdditionalFrameLength() const { return 0; }
+
+   virtual void CopyAdditionalFrame(std::vector<uint32_t>&) {}
+
    std::string fInputChannelName;
    std::string fOutputChannelName;
    std::string fName;

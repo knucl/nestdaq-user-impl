@@ -71,20 +71,28 @@ bool FilterTimeFrameSliceABC::ConditionalRun()
 //   }
    for (uint64_t ifrm = 0, nfrm = fTFs.size(); ifrm < nfrm; ++ifrm) {
       auto& tf = fTFs[ifrm];
+      ClearAdditionalFrame();
       bool doKeep = false;
       if (tf.GetHeader()->type == TimeFrame::META) {
          LOG(info) << " META information";
          doKeep = true;
-      } else {
-         if (tf.GetHeader()->type == TimeFrame::META) {
-            doKeep = true;
-         } else if (tf.GetHeader()->type == TimeFrame::SLICE) {
-            doKeep = ProcessSlice(tf, fSliceTrgTimes[ifrm]);
-         }
+      } else if (tf.GetHeader()->type == TimeFrame::SLICE) {
+         doKeep = ProcessSlice(tf, fSliceTrgTimes[ifrm]);
       }
       if (!doKeep) continue;
-      tf.GetHeader()->length = tf.GetRealLength();
-      tf.CopyAllTo<copyUnit>(outdata);
+//      tf.GetHeader()->length = tf.GetRealLength();
+//      tf.CopyAllTo<copyUnit>(outdata);
+      const uint32_t additionalLength = GetAdditionalFrameLength();
+      tf.GetHeader()->length = tf.GetRealLength() + additionalLength;
+      if (additionalLength == 0) {
+         tf.CopyAllTo<copyUnit>(outdata);
+      } else {
+         tf.CopyHeaderTo<copyUnit>(outdata);
+         CopyAdditionalFrame(*outdata);
+         for (auto* stf : tf) {
+            stf->CopyAllTo<copyUnit>(outdata);
+         }
+      }
    }
    // LOG(info) << outdata->size() ;
    
