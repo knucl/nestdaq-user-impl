@@ -81,15 +81,23 @@ Computational cost depends on number of Subgroups. If your trigger logic has les
 
 The upper 8 bits of `TrgTime::type` remain the record identifier `0xaa`.
 The lower 24 bits indicate which top-level OR terms of
-`trigger-expression` were true at the trigger time. Terms are numbered from
-left to right starting at bit 0. Multiple bits can be set when multiple terms
-are true simultaneously.
+`trigger-expression` changed from false to true at the trigger time. Terms
+are numbered from left to right starting at bit 0. Each term is edge-detected
+independently, including while another term remains true. Multiple terms
+rising in the same time bin produce one record with multiple bits set.
 
 For example, with `(0 & 1) | (2 & 3)`:
 
 - bit 0 represents `(0 & 1)`;
 - bit 1 represents `(2 & 3)`;
-- `type == 0xaa000003` means both terms were true.
+- `type == 0xaa000003` means both terms rose in that time bin;
+- if term 0 stays true while term 1 rises, a new record has type `0xaa000002`.
+
+The flags describe newly rising terms, not all terms currently true. No
+record is generated for a falling edge or a continuously true term. The
+scan retains the existing HBF boundary behavior: it compares bins 0 and 1
+onward, without generating a record for bin 0 or carrying state across HBFs.
+This change does not implement prescaling.
 
 An expression without a top-level OR is treated as one term and uses bit 0.
 At most 24 top-level OR terms can be represented; LogicFilter rejects a

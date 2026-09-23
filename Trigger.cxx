@@ -555,11 +555,13 @@ std::vector<uint32_t> *Trigger::Scan()
 			fHits.emplace_back(i + 1);
 		}
 		#else
-			if ((! fTMap.LookUp(fTimeRegion[i]))
-			 && (fTMap.LookUp(fTimeRegion[i + 1]))) {
+			const uint32_t prev = fTMap.LookUpOrFlags(fTimeRegion[i]);
+			const uint32_t curr = fTMap.LookUpOrFlags(fTimeRegion[i + 1]);
+			const uint32_t rising = curr & ~prev;
+			// Record newly rising terms, even while another term remains true.
+			if (rising != 0) {
 				fHits.emplace_back(i + 1);
-				fHitOrFlags.emplace_back(
-					fTMap.LookUpOrFlags(fTimeRegion[i + 1]));
+				fHitOrFlags.emplace_back(rising);
 			}
 		#endif
 
