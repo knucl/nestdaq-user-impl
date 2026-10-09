@@ -11,7 +11,8 @@
 //#include <sw/redis++/patterns/redlock.h>
 #include <sw/redis++/errors.h>
 
-#include "SignalParser.cxx"
+//#include "SignalParser.cxx"
+#include "SignalParser.h"
 #include "ExprParser.cxx"
 
 
@@ -44,7 +45,11 @@ std::tuple< std::vector< std::vector<uint32_t> >, std::vector<struct ExprParser:
 	}
 #endif
 
-	signals = SignalParser::Parsing(hash_data["trigger-signals"]);
+//	signals = SignalParser::Parsing(hash_data["trigger-signals"]);
+  const auto sigs = SignalParser::Parsing(hash_data["trigger-signals"]);
+  for (const auto& sig : sigs) {
+    signals.push_back({sig.femId, sig.channel, sig.offset});
+  }
 	exprs = ExprParser::Parsing(hash_data["trigger-expression"]);
 
 #if 0
