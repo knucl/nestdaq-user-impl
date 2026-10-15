@@ -17,6 +17,7 @@
 #include "SubTimeFrameHeader.h"
 #include "TriggerMap.cxx"
 #include "SignalParser.h"
+#include "LogicFilterTiming.h"
 
 #define DEBUG_MORE32 0
 
@@ -51,9 +52,9 @@ public:
 	void ClearEntry();
 	bool CheckEntryFEM(uint32_t);
 	void Mark(unsigned char *, int, int, uint32_t);
-	std::vector<uint32_t> *Scan();
+	std::vector<uint32_t> *Scan(LogicFilterTiming::Frame* timing = nullptr);
 	void ScanSubTRandMarkMainTR();
-	std::vector<uint32_t> *Exec(std::vector<struct HBFIndex> &);
+	std::vector<uint32_t> *Exec(std::vector<struct HBFIndex> &, LogicFilterTiming::Frame* timing = nullptr);
 	void SetMarkLen(int val) {fMarkLen = val;};
 	int GetMarkLen() {return fMarkLen;};
 	//void SetLogic(int);
@@ -522,7 +523,7 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 	return;
 }
 
-std::vector<uint32_t> *Trigger::Scan()
+std::vector<uint32_t> *Trigger::Scan(LogicFilterTiming::Frame* timing)
 {
 	#if DEBUG_MORE32
 	std::cout << "[Trigger::Scan] Start scanning SubTimeRegion and marking MainTimeRegion..." << std::endl;
@@ -530,7 +531,10 @@ std::vector<uint32_t> *Trigger::Scan()
 	// --------------------------------
 	// Process AND logic
 	// --------------------------------
-	Trigger::ScanSubTRandMarkMainTR();
+	{
+		LogicFilterTiming::Scope timer(timing, LogicFilterTiming::SubAnd);
+		Trigger::ScanSubTRandMarkMainTR();
+	}
 	// --------------------------------
 	// Finish processing AND logic, and marking MainTimeRegion
 	// --------------------------------
@@ -543,6 +547,7 @@ std::vector<uint32_t> *Trigger::Scan()
 	#endif
 	//std::cout << "#D Scan fMarkMask: " << std::hex << fMarkMask << std::endl;
 	//std::cout << "#D Scan fEntryMask: " << std::hex << fEntryMask << std::endl;
+	LogicFilterTiming::Scope lutTimer(timing, LogicFilterTiming::Lut);
 	fHits.clear();
 	fHits.resize(0);
 	fHitOrFlags.clear();
@@ -614,14 +619,17 @@ void Trigger::ScanSubTRandMarkMainTR()
 	return;
 } // void Trigger::ScanSubTRandMarkMainTR()
 
-std::vector<uint32_t> *Trigger::Exec(std::vector<struct HBFIndex> &hbf)
+std::vector<uint32_t> *Trigger::Exec(std::vector<struct HBFIndex> &hbf, LogicFilterTiming::Frame* timing)
 {
+	{
+	LogicFilterTiming::Scope timer(timing, LogicFilterTiming::Mark);
 	for (auto &seg : hbf) {
 		//fTrig->Mark(
 		//	reinterpret_cast<unsigned char *>(inParts[mindex].GetData()),
 		//	inParts[mindex].GetSize(),
 		//	vfemid, dbl->Type);
 		Trigger::Mark(seg.data, seg.size, seg.femId, seg.femType);
+	}
 	}
 
 	#if 0
@@ -650,7 +658,7 @@ std::vector<uint32_t> *Trigger::Exec(std::vector<struct HBFIndex> &hbf)
 	std::cout << std::endl;
 	#endif
 
-	return Trigger::Scan();
+	return Trigger::Scan(timing);
 }
 
 

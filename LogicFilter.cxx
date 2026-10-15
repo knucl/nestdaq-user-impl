@@ -57,6 +57,7 @@ struct LogicFilter : fair::mq::Device
 		static constexpr std::string_view TriggerSignals     {"trigger-signals"};
 		static constexpr std::string_view TriggerExpression     {"trigger-expression"};
 		static constexpr std::string_view TriggerWidth       {"trigger-width"};
+		static constexpr std::string_view ProfileInterval    {"profile-interval-ms"};
 	};
 
 	struct DataBlock {
@@ -119,6 +120,7 @@ struct LogicFilter : fair::mq::Device
 
 	
 	bool ConditionalRun() override;
+	void PreRun() override { fProfile.Reset(); }
 	void PostRun() override;
 
 	bool CheckData(fair::mq::MessagePtr&);
@@ -153,6 +155,7 @@ private:
 	std::string fOutputChannelName;
 	std::string fDQMChannelName;
 	std::string fName;
+	LogicFilterTiming::Profiler fProfile;
 
 	int fNumDestination {0};
 	uint32_t fDirection {0};
@@ -196,6 +199,11 @@ void LogicFilter::InitTask()
 	fPollTimeoutMS  = std::stoi(fConfig->GetProperty<std::string>(opt::PollTimeout.data()));
 
 	fName = fConfig->GetProperty<std::string>("id");
+	const int profileInterval = std::stoi(
+		fConfig->GetProperty<std::string>(opt::ProfileInterval.data()));
+	if (profileInterval < 0) throw std::invalid_argument("profile-interval-ms must be nonnegative");
+	fProfile.Configure(static_cast<unsigned>(profileInterval));
+	LOG(info) << "LogicFilter profiling interval (ms, 0=off): " << profileInterval;
 	std::istringstream ss(fName.substr(fName.rfind("-") + 1));
 	ss >> fId;
 
@@ -1143,11 +1151,17 @@ bool LogicFilter::ConditionalRun()
 	// struct TimeFrame::Header *i_tfHeader = nullptr;
 	int i_tf_msg_index = 0;
 	uint32_t tf_tf_id = 0;
-	std::chrono::system_clock::time_point sw_start, sw_end;
-
-	if (Receive(inParts, fInputChannelName, 0, 1000) > 0) {
+	LogicFilterTiming::Clock::time_point sw_start, sw_end;
+	LogicFilterTiming::Frame profileFrame;
+	auto* timing = fProfile.Enabled() ? &profileFrame : nullptr;
+	int received;
+	{
+		LogicFilterTiming::Scope timer(timing, LogicFilterTiming::Receive);
+		received = Receive(inParts, fInputChannelName, 0, 1000);
+	}
+	if (received > 0) {
 		assert(inParts.Size() >= 2);
-		sw_start = std::chrono::system_clock::now();
+		sw_start = LogicFilterTiming::Clock::now();
 
 		#if 1
 		if (fKt1->Check()) CheckMultiPart(inParts);
@@ -1191,6 +1205,8 @@ bool LogicFilter::ConditionalRun()
 			}
 		}
 
+		if (timing) timing->us[LogicFilterTiming::Input] =
+			LogicFilterTiming::Microseconds(sw_start, LogicFilterTiming::Clock::now());
 		// Trigger processing in unit of HBF
 		std::vector< std::vector<uint32_t> > fltdata;
 		std::vector< std::vector<uint32_t> > fltOrFlags;
@@ -1199,12 +1215,23 @@ bool LogicFilter::ConditionalRun()
 
 			//HBF building
 			std::vector<struct HBFIndex> hbf_list;
-			BuildHBF(hbf_list, block_map, inParts, i);
+			{
+				LogicFilterTiming::Scope timer(timing, LogicFilterTiming::BuildHBF);
+				BuildHBF(hbf_list, block_map, inParts, i);
+			}
 
 			//Trigger process
-			fTrig->CleanUpTimeRegion();
-			fTrig->CleanUpSubTimeRegion(fNEntryInSubTimeRegion_LogicFilter);
-			std::vector<uint32_t> *hits = fTrig->Exec(hbf_list);
+			{
+				LogicFilterTiming::Scope timer(timing, LogicFilterTiming::ClearMain);
+				fTrig->CleanUpTimeRegion();
+			}
+			{
+				LogicFilterTiming::Scope timer(timing, LogicFilterTiming::ClearSub);
+				fTrig->CleanUpSubTimeRegion(fNEntryInSubTimeRegion_LogicFilter);
+			}
+			std::vector<uint32_t> *hits = fTrig->Exec(hbf_list, timing);
+			{
+			LogicFilterTiming::Scope timer(timing, LogicFilterTiming::Result);
 			fltdata.emplace_back(*hits);
 			fltOrFlags.emplace_back(*fTrig->GetHitOrFlags());
 			int nhits = hits->size();
@@ -1227,8 +1254,11 @@ bool LogicFilter::ConditionalRun()
 			MarkFlagSending(block_map, i, nhits, flag_sending);
 
 			totalhits += nhits;
+			}
 		}
 
+		{
+		LogicFilterTiming::Scope timer(timing, LogicFilterTiming::Dump);
 		#if DUMP_FLTDATA // FLT data check
 		fOutFile << "ConditionalRun Iterations: " << fIteration << std::endl;
 		for(size_t i=0; i < fltdata.size(); i++){
@@ -1279,9 +1309,14 @@ bool LogicFilter::ConditionalRun()
 		auto stfId     = stfHeader->timeFrameId;
 		#endif
 
-		sw_end = std::chrono::system_clock::now();
+		} // Existing trigger dump and TotalHits diagnostic output.
+		sw_end = LogicFilterTiming::Clock::now();
 		uint32_t elapse = std::chrono::duration_cast<std::chrono::microseconds>(
 			sw_end - sw_start).count();
+		if (timing) timing->us[LogicFilterTiming::Legacy] =
+			LogicFilterTiming::Microseconds(sw_start, sw_end);
+		{
+		LogicFilterTiming::Scope timer(timing, LogicFilterTiming::Diagnostic);
 		static uint64_t int_hits = 0;
 		static uint64_t int_processed_hbf = 0;
 		double trig_ratio;
@@ -1354,6 +1389,9 @@ bool LogicFilter::ConditionalRun()
 		}
 		#endif
 
+		} // Existing Elapse output and diagnostic bookkeeping.
+		const auto outputStart = timing ? LogicFilterTiming::Clock::now()
+			: LogicFilterTiming::Clock::time_point{};
 		FairMQParts outParts;
   
 		//Copy TimeFrameHeader
@@ -1485,16 +1523,22 @@ bool LogicFilter::ConditionalRun()
 
 
 		#if 1
+		if (timing) timing->us[LogicFilterTiming::Output] =
+			LogicFilterTiming::Microseconds(outputStart, LogicFilterTiming::Clock::now());
 		FairMQParts dqmParts;
 		bool dqmSocketExists = fChannels.count(fDQMChannelName);
 		if (dqmSocketExists) {
+			{
+			LogicFilterTiming::Scope timer(timing, LogicFilterTiming::DqmCopy);
 			for (auto & m : outParts) {
 				FairMQMessagePtr msgCopy(fTransportFactory->CreateMessage());
 				msgCopy->Copy(*m);
 				dqmParts.AddPart(std::move(msgCopy));
 			}
+			}
 
-
+			{
+			LogicFilterTiming::Scope timer(timing, LogicFilterTiming::DqmSend);
 			if (Send(dqmParts, fDQMChannelName) < 0) {
 				if (NewStatePending()) {
 					LOG(info) << "Device is not RUNNING";
@@ -1503,6 +1547,7 @@ bool LogicFilter::ConditionalRun()
 				}
 			} else {
 				//std::cout << "+" << std::flush;
+			}
 			}
 		} else {
 			#if 0
@@ -1513,6 +1558,8 @@ bool LogicFilter::ConditionalRun()
 
 
 		//Send
+		{
+		LogicFilterTiming::Scope timer(timing, LogicFilterTiming::Send);
 		auto poller = NewPoller(fOutputChannelName);
 		while (!NewStatePending()) {
 			auto direction = (fDirection++) % fNumDestination;
@@ -1529,14 +1576,23 @@ bool LogicFilter::ConditionalRun()
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 		}
-
+		}
+		if (timing) {
+			timing->us[LogicFilterTiming::Total] =
+				LogicFilterTiming::Microseconds(sw_start, LogicFilterTiming::Clock::now());
+			fProfile.Record(profileFrame, totalhits, bsize_min);
+		}
+	} else {
+		fProfile.RecordIdle(profileFrame);
 	}
+	fProfile.Report(fName);
 
 	return true;
 }
 
 void LogicFilter::PostRun()
 {
+	fProfile.Report(fName, true);
 	LOG(info) << "Post Run";
 	return;
 }
@@ -1611,6 +1667,9 @@ void addCustomOptions(bpo::options_description& options)
 		(opt::TriggerWidth.data(),
 			bpo::value<std::string>()->default_value("10"),
 			"Trigger window width (4 ns unit)")
+		(opt::ProfileInterval.data(),
+			bpo::value<std::string>()->default_value("5000"),
+			"Stage profiling report interval in ms (0 disables profiling)")
 
     		;
 }
