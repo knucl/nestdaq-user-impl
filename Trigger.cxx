@@ -594,6 +594,9 @@ void Trigger::ScanSubTRandMarkMainTR()
 	for(const auto &p : fiSubTimeRegionMainTimeRegion){
 		uint32_t iSubTimeRegion = p.first; // index of SubTimeRegion
 		uint32_t iMainTimeRegion = p.second; // a bit in MainTimeRegion reserved by this SubTimeRegion
+    
+    uint32_t nInSubTimeRegion = fNEntryInSubTimeRegion_Trigger.at(iSubTimeRegion);
+    uint32_t initialValue = (uint32_t(1u) << nInSubTimeRegion) - uint32_t(1u);
 
 		#if DEBUG_MORE32
 		std::cout << "[Trigger::ScanSubTRandMarkMainTR] Start scanning SubTimeRegion: iSubTimeRegion: " << iSubTimeRegion << " iMainTimeRegion: " << std::bitset<32>(iMainTimeRegion) << std::endl;
@@ -611,6 +614,7 @@ void Trigger::ScanSubTRandMarkMainTR()
 				std::cout << "[Trigger::ScanSubTRandMarkMainTR] mark bit for MainTimeRegion: " << std::bitset<32>(iMainTimeRegion) << " to hit time " << i << std::endl;
 				#endif
 			}
+      fSubTimeRegions[iSubTimeRegion][i] = initialValue;
 		}
 		#if DEBUG_MORE32
 		std::cout << "\tDone." << std::endl;

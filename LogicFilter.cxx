@@ -1227,7 +1227,7 @@ bool LogicFilter::ConditionalRun()
 			}
 			{
 				LogicFilterTiming::Scope timer(timing, LogicFilterTiming::ClearSub);
-				fTrig->CleanUpSubTimeRegion(fNEntryInSubTimeRegion_LogicFilter);
+//				fTrig->CleanUpSubTimeRegion(fNEntryInSubTimeRegion_LogicFilter);
 			}
 			std::vector<uint32_t> *hits = fTrig->Exec(hbf_list, timing);
 			{
