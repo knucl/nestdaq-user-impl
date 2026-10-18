@@ -7,6 +7,9 @@
 #include <iomanip>
 #include <vector>
 #include <map>
+#include <array>
+#include <algorithm>
+#include <stdexcept>
 
 #include <string.h>
 #include <assert.h>
@@ -78,10 +81,11 @@ private:
 	uint32_t fEntryMask = 0;
 
 	int fNentry = 0;
-	uint32_t fTimeRegionSize; // size of main TimeRegion
+	uint32_t fTimeRegionSize = 0; // size of main TimeRegion
 	uint32_t *fTimeRegion = nullptr; // main TimeRegion
-	uint32_t fSubTimeRegionSize; // size of each SubTimeRegion
-	std::vector<uint32_t*> fSubTimeRegions; // vector of SubTimeRegions.
+	uint32_t fSubTimeRegionSize = 0; // number of time bins, not uint64_t words
+//	std::vector<uint32_t*> fSubTimeRegions; // vector of SubTimeRegions.
+	std::vector<std::array<std::vector<uint64_t>, 2>> fSubTimeRegions;
 	//int fMarkCount = 0;
 	//uint32_t fMarkMask = 0;
 	std::vector<uint32_t> fHits;
@@ -134,6 +138,7 @@ void Trigger::InitParam()
 
 bool Trigger::SetTimeRegion(int size)
 {
+	if (size <= 0) throw std::invalid_argument("TimeRegion size must be positive");
 	fTimeRegionSize = size;
 	if (fTimeRegion != nullptr) {
 		delete[] fTimeRegion;
@@ -145,23 +150,21 @@ bool Trigger::SetTimeRegion(int size)
 }
 
 bool Trigger::SetSubTimeRegion(int subTimeRegionSize, const std::map<uint32_t, uint32_t>& nEntryInSubTimeRegion){
-	assert(fSubTimeRegions.empty()); // this function called only once
-
-	fSubTimeRegionSize = subTimeRegionSize;
-	fSubTimeRegions.resize(nEntryInSubTimeRegion.size());
-	for(const auto &p : nEntryInSubTimeRegion){
-		uint32_t iSubTimeRegion = p.first;
-		uint32_t nEntryInSubTimeRegion = p.second;
-		#if 0
-		std::cout << "#D SubTimeRegion " << iSubTimeRegion << " has " << nEntryInSubTimeRegion << " entries." << std::endl;
-		#endif
-		uint32_t initialValue = (uint32_t(1u) << nEntryInSubTimeRegion) - uint32_t(1u); // nEntryInSubTimeRegion個の下位ビットが立っている値
-
-		uint32_t* subTimeRegion = new uint32_t[subTimeRegionSize];
-		for( uint32_t i = 0 ; i < subTimeRegionSize ; i++) {
-			subTimeRegion[i] = initialValue;
+	if (subTimeRegionSize <= 0 ||
+	    static_cast<uint32_t>(subTimeRegionSize) != fTimeRegionSize) {
+		throw std::invalid_argument("SubTimeRegion size must match positive TimeRegion size");
+	}
+	for (const auto& p : nEntryInSubTimeRegion) {
+		if (p.second != 2 || p.first >= nEntryInSubTimeRegion.size()) {
+			throw std::invalid_argument("SubTimeRegions require exactly 2 inputs and contiguous indices");
 		}
-		fSubTimeRegions[iSubTimeRegion] = subTimeRegion;
+	}
+	fSubTimeRegionSize = static_cast<uint32_t>(subTimeRegionSize);
+	const std::size_t wordCount = (static_cast<std::size_t>(fSubTimeRegionSize) + 63) / 64;
+	fSubTimeRegions.resize(nEntryInSubTimeRegion.size());
+	for (auto& region : fSubTimeRegions) {
+		region[0].assign(wordCount, uint64_t{0});
+		region[1].assign(wordCount, uint64_t{0});
 	}
 
 	return true;
@@ -177,13 +180,10 @@ void Trigger::CleanUpTimeRegion()
 
 void Trigger::CleanUpSubTimeRegion(const std::map<uint32_t, uint32_t>& nEntryInSubTimeRegion)
 {
-	for(const auto &p : nEntryInSubTimeRegion){
-		uint32_t iSubTimeRegion = p.first;
-		uint32_t nInSubTimeRegion = p.second;
-		uint32_t initialValue = (uint32_t(1u) << nInSubTimeRegion) - uint32_t(1u); // nInSubTimeRegion個の下位ビットが立っている値
-		for(uint32_t i=0; i < fSubTimeRegionSize; i++){
-			fSubTimeRegions[iSubTimeRegion][i] = initialValue;
-		}
+	(void)nEntryInSubTimeRegion; // Retain the existing public reset interface.
+	for (auto& region : fSubTimeRegions) {
+		std::fill(region[0].begin(), region[0].end(), uint64_t{0});
+		std::fill(region[1].begin(), region[1].end(), uint64_t{0});
 	}
 	return;
 }
@@ -261,6 +261,11 @@ void Trigger::Entry(uint32_t fem, int ch, int offset)
 
 void Trigger::EntryTo(uint32_t group_id, uint32_t subgroup_id, uint32_t iSubTimeRegion, uint32_t fem, uint32_t ch, int offset)
 {
+	if (group_id >= 32) throw std::invalid_argument("group_id must be less than 32");
+	if (subgroup_id != SignalParser::NO_SUBGROUP &&
+	    fEntryCounts[std::make_pair(group_id, subgroup_id)] >= 2) {
+		throw std::invalid_argument("Each subgroup supports exactly 2 inputs; third input rejected");
+	}
 	fEntryCh[fem].emplace_back(ch);
 	fEntryChDelay[fem].emplace_back(offset);
 	if(subgroup_id == SignalParser::NO_SUBGROUP){
@@ -357,6 +362,10 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 			uint32_t iSubTimeRegion = fEntryChiSubTimeRegion[fem][i];
 
 			bool isMemberOfSubGroup = (iSubTimeRegion != UINT32_MAX); // true for member of subgroup, false for not of subgroup
+			// Subgroup input bits are 1/2 in registration order, independent of FE channel ID.
+			const std::size_t input = markbit == 1u ? 0u : 1u;
+			uint64_t* subBits = isMemberOfSubGroup
+				? fSubTimeRegions[iSubTimeRegion][input].data() : nullptr;
 
 
 			#if 0
@@ -389,7 +398,8 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
 									if ((hit + k) < fTimeRegionSize) {
 										if(isMemberOfSubGroup){
-											fSubTimeRegions[iSubTimeRegion][hit + k] &= ~markbit; // サブTimeRegionのビットを降ろす
+											const uint32_t t = hit + k;
+											subBits[t / 64] |= uint64_t{1} << (t % 64);
 										}
 										else{
 											fTimeRegion[hit + k] |= markbit;
@@ -422,7 +432,8 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
 									if ((hit + k) < fTimeRegionSize) {
 										if(isMemberOfSubGroup){
-											fSubTimeRegions[iSubTimeRegion][hit + k] &= ~markbit; // サブTimeRegionのビットを降ろす
+											const uint32_t t = hit + k;
+											subBits[t / 64] |= uint64_t{1} << (t % 64);
 										}
 										else{
 											fTimeRegion[hit + k] |= markbit;
@@ -453,7 +464,8 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 								for (int k = -static_cast<int>(leftwidth) ; k < static_cast<int>(rightwidth) + 1 ; k++) {
 									if ((hit + k) < fTimeRegionSize) {
 										if(isMemberOfSubGroup){
-											fSubTimeRegions[iSubTimeRegion][hit + k] &= ~markbit; // サブTimeRegionのビットを降ろす
+											const uint32_t t = hit + k;
+											subBits[t / 64] |= uint64_t{1} << (t % 64);
 										} // if(isMemberOfSubGroup)
 										else{
 											fTimeRegion[hit + k] |= markbit;
@@ -488,7 +500,8 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
 									if ((hit + k) < fTimeRegionSize) {
 										if(isMemberOfSubGroup){
-											fSubTimeRegions[iSubTimeRegion][hit + k] &= ~markbit; // サブTimeRegionのビットを降ろす
+											const uint32_t t = hit + k;
+											subBits[t / 64] |= uint64_t{1} << (t % 64);
 										}
 										else{
 											fTimeRegion[hit + k] |= markbit;
@@ -595,26 +608,22 @@ void Trigger::ScanSubTRandMarkMainTR()
 		uint32_t iSubTimeRegion = p.first; // index of SubTimeRegion
 		uint32_t iMainTimeRegion = p.second; // a bit in MainTimeRegion reserved by this SubTimeRegion
     
-    uint32_t nInSubTimeRegion = fNEntryInSubTimeRegion_Trigger.at(iSubTimeRegion);
-    uint32_t initialValue = (uint32_t(1u) << nInSubTimeRegion) - uint32_t(1u);
-
 		#if DEBUG_MORE32
 		std::cout << "[Trigger::ScanSubTRandMarkMainTR] Start scanning SubTimeRegion: iSubTimeRegion: " << iSubTimeRegion << " iMainTimeRegion: " << std::bitset<32>(iMainTimeRegion) << std::endl;
 		#endif
 
-		// for(uint32_t i = 0; i < fSubTimeRegionSize - 1; ++i){
-		// 	if((fSubTimeRegion[iSubTimeRegion][i] != 0u) && (fSubTimeRegion[iSubTimeRegion][i + 1] == 0u)){
-		// 		fTimeRegion[i] |= iMainTimeRegion;
-		// 	}
-		// }
-		for(uint32_t i = 0; i < fSubTimeRegionSize; ++i){
-			if(fSubTimeRegions[iSubTimeRegion][i] == uint32_t(0u)){
-				fTimeRegion[i] |= iMainTimeRegion;
-				#if DEBUG_MORE32 & 0
-				std::cout << "[Trigger::ScanSubTRandMarkMainTR] mark bit for MainTimeRegion: " << std::bitset<32>(iMainTimeRegion) << " to hit time " << i << std::endl;
-				#endif
+		auto& inputs = fSubTimeRegions[iSubTimeRegion];
+		for (std::size_t word = 0; word < inputs[0].size(); ++word) {
+			uint64_t coincidence = inputs[0][word] & inputs[1][word];
+			// Reuse the loaded cache lines to reset both inputs for the next HBF.
+			inputs[0][word] = 0;
+			inputs[1][word] = 0;
+			while (coincidence != 0) {
+				const unsigned bit = static_cast<unsigned>(__builtin_ctzll(coincidence));
+				const std::size_t t = word * 64 + bit;
+				if (t < fSubTimeRegionSize) fTimeRegion[t] |= iMainTimeRegion;
+				coincidence &= coincidence - 1;
 			}
-      fSubTimeRegions[iSubTimeRegion][i] = initialValue;
 		}
 		#if DEBUG_MORE32
 		std::cout << "\tDone." << std::endl;

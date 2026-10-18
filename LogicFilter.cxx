@@ -23,6 +23,7 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include <stdexcept>
 
 #include "utility/MessageUtil.h"
 
@@ -336,6 +337,13 @@ void LogicFilter::InitTask()
 		}
 	}
 	std::cout << "\tNumber of SubTimeRegions: " << iSubTimeRegion + 1 << std::endl;
+	for (const auto& entry : fNEntryInSubTimeRegion_LogicFilter) {
+		if (entry.second != 2) {
+			throw std::invalid_argument("Subgroup index " + std::to_string(entry.first)
+				+ " must contain exactly 2 input channels (got "
+				+ std::to_string(entry.second) + ")");
+		}
+	}
 	fTrig->SetfnEntryInSubTimeRegion(fNEntryInSubTimeRegion_LogicFilter);
 	std::cout << "\tDone." << std::endl;
 
