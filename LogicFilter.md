@@ -77,28 +77,70 @@ Computational cost depends on number of Subgroups. If your trigger logic has les
 - 同じサブグループに属するチャンネルはANDのロジックが自動で組まれます
 - "trigger-expression"はこれまでどおりの記法だが、グループ同士のロジックを記述する
 
-## Trigger OR flags in `TrgTime::type`
+## Independent multi-trigger definitions (this branch)
 
-The upper 8 bits of `TrgTime::type` remain the record identifier `0xaa`.
-The lower 24 bits indicate which top-level OR terms of
-`trigger-expression` changed from false to true at the trigger time. Terms
-are numbered from left to right starting at bit 0. Each term is edge-detected
-independently, including while another term remains true. Multiple terms
-rising in the same time bin produce one record with multiple bits set.
+This branch removes OR-term flagging. Each explicit trigger ID owns one bit
+in the lower 24 bits of `TrgTime::type`; the upper byte remains `0xaa`.
+The serialized `TrgTime` size/layout is unchanged, but flag semantics differ
+from the OR-flags branch. Do not interpret old files with the new ID mapping.
 
-For example, with `(0 & 1) | (2 & 3)`:
+Use decimal trigger IDs 0..23, separated by a newline or semicolon in the SAME
+Redis `trigger-expression` value. Group IDs inside formulas still refer to
+`trigger-signals`. IDs may be sparse and line order does not assign IDs.
 
-- bit 0 represents `(0 & 1)`;
-- bit 1 represents `(2 & 3)`;
-- `type == 0xaa000003` means both terms rose in that time bin;
-- if term 0 stays true while term 1 rises, a new record has type `0xaa000002`.
+```bash
+# Example: group 0=beam, 1=kaon, 2=interaction.
+expressions='0: 0
+1: 0 & 1
+2: 0 & 2
+3: 0 & 1 & 2'
+redis-cli -u "$server" HSET parameters:LogicFilter trigger-expression "$expressions"
+```
 
-The flags describe newly rising terms, not all terms currently true. No
-record is generated for a falling edge or a continuously true term. The
-scan retains the existing HBF boundary behavior: it compares bins 0 and 1
-onward, without generating a record for bin 0 or carrying state across HBFs.
-This change does not implement prescaling.
+Repeated HSET commands to the SAME field overwrite it; build the complete
+multiline value first and write once. A compact equivalent is:
 
-An expression without a top-level OR is treated as one term and uses bit 0.
-At most 24 top-level OR terms can be represented; LogicFilter rejects a
-configuration containing more than 24 terms.
+```text
+0: 0; 1: 0 & 1; 2: 0 & 2; 3: 0 & 1 & 2
+```
+
+Each expression accepts infix `!`, `&`, `|`, parentheses (precedence in that
+order), or an explicit `RPN` / `rpn` prefix, e.g. `3: RPN 0 1 & 2 &`.
+Duplicate IDs, IDs >=24, empty/malformed expressions, and unsupported tokens
+are rejected during initialization. Decimal group IDs must be 0..31.
+
+All expressions are evaluated during initialization into ONE uint32_t LUT.
+An entry is a bitmask of the independent triggers true for that group pattern.
+There is no per-trigger TF scan, no OR decomposition and no OR-flags LUT.
+The table size still grows as 2^(highest referenced group ID + 1), so syntactic
+support for 32 groups is not a guarantee that a large dense table fits in RAM.
+Registered groups above that highest referenced ID are masked out for lookup;
+they do not veto a trigger that does not use them.
+
+At runtime, each trigger is edge-detected independently using:
+
+```cpp
+const uint32_t rising = currentTriggerFlags & ~previousTriggerFlags;
+```
+
+If multiple IDs rise in the SAME time bin, ONE record is emitted with all
+their bits set. A new trigger can fire while another stays true. Flags mean
+newly firing IDs, not all conditions currently true. Example:
+
+- beam rises alone: `type=0xaa000001`;
+- kaon rises during beam: `type=0xaa000002`;
+- interaction rises during beam+kaon: `type=0xaa00000c` (IDs 2 and 3);
+- all three rise simultaneously: `type=0xaa00000f`.
+
+A legacy single expression without IDs is accepted as trigger ID 0. For
+`(0 & 1) | (2 & 3)`, the entire expression is ONE trigger: when the second OR
+arm rises while the first remains true, no new trigger is emitted. Define
+separate trigger IDs if independent edges are required.
+
+HBF boundary behavior is unchanged: bin 0 is the reference state; comparisons
+start at bins 0->1. No bin-0 trigger or cross-HBF state is added. Window/offset
+and two-input subgroup behavior are unchanged. No prescaling is implemented.
+
+The public accessors are now `GetHitTriggerFlags()`, `LookUpTriggerFlags()` and
+`Filter::GetTrgTimeTriggerFlags()`. Old OR-named accessors are removed.
+`MatchesTrgTimeType()` retains its existing wildcard/exact-match behavior.

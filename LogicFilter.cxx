@@ -1004,7 +1004,7 @@ int LogicFilter::BuildHBF(
 int LogicFilter::AddFilterMessage(
 	FairMQParts &outParts,
 	std::vector< std::vector<uint32_t> > &fltdata,
-	std::vector< std::vector<uint32_t> > &fltOrFlags,
+	std::vector< std::vector<uint32_t> > &fltTriggerFlags,
 	uint32_t elapse,
 	uint32_t tf_id)
 {
@@ -1021,10 +1021,10 @@ int LogicFilter::AddFilterMessage(
 	uint32_t totalhits = 0;
 	for (size_t imsg = 0; imsg < fltdata.size(); ++imsg) {
 		auto &v = fltdata[imsg];
-		auto &orFlags = fltOrFlags.at(imsg);
-		if (v.size() != orFlags.size()) {
+		auto &triggerFlags = fltTriggerFlags.at(imsg);
+		if (v.size() != triggerFlags.size()) {
 			throw std::runtime_error(
-				"trigger time and OR flag counts do not match");
+				"trigger time and trigger flag counts do not match");
 		}
 		flt_datasize += v.size() * sizeof(uint32_t)
 			+ sizeof(struct Filter::TrgTimeHeader);
@@ -1066,7 +1066,7 @@ int LogicFilter::AddFilterMessage(
 	//add FLT data
 	for (size_t imsg = 0; imsg < fltdata.size(); ++imsg) {
 		auto &v = fltdata[imsg];
-		auto &orFlags = fltOrFlags[imsg];
+		auto &triggerFlags = fltTriggerFlags[imsg];
 		//auto trgtdc = std::make_unique<std::vector<uint32_t>>(std::move(v));
 		//outParts.AddPart(MessageUtil::NewMessage(*this, std::move(trgtdc)));
 
@@ -1084,7 +1084,7 @@ int LogicFilter::AddFilterMessage(
 		for (auto &h : trg_time_header.u32data) vv.emplace_back(h);
 		for (size_t ihit = 0; ihit < v.size(); ++ihit) {
 			vv.emplace_back(v[ihit]);
-			vv.emplace_back(Filter::MakeTrgTimeType(orFlags[ihit]));
+			vv.emplace_back(Filter::MakeTrgTimeType(triggerFlags[ihit]));
 		}
 		//std::cout << "#D fltmsg.size: " << vv.size()
 		//	<< " TrgTime.len: " << trg_time_header.length << std::endl;
@@ -1217,7 +1217,7 @@ bool LogicFilter::ConditionalRun()
 			LogicFilterTiming::Microseconds(sw_start, LogicFilterTiming::Clock::now());
 		// Trigger processing in unit of HBF
 		std::vector< std::vector<uint32_t> > fltdata;
-		std::vector< std::vector<uint32_t> > fltOrFlags;
+		std::vector< std::vector<uint32_t> > fltTriggerFlags;
 		int totalhits = 0;
 		for (size_t i = 0 ; i < bsize_min ; i++) {
 
@@ -1241,7 +1241,7 @@ bool LogicFilter::ConditionalRun()
 			{
 			LogicFilterTiming::Scope timer(timing, LogicFilterTiming::Result);
 			fltdata.emplace_back(*hits);
-			fltOrFlags.emplace_back(*fTrig->GetHitOrFlags());
+			fltTriggerFlags.emplace_back(*fTrig->GetHitTriggerFlags());
 			int nhits = hits->size();
 
 			#if 0
@@ -1272,7 +1272,7 @@ bool LogicFilter::ConditionalRun()
 		for(size_t i=0; i < fltdata.size(); i++){
 			for(size_t ii=0; ii < fltdata[i].size(); ii++){
 				fOutFile << fltdata[i][ii]
-					<< " or_flags=0x" << std::hex << fltOrFlags[i][ii]
+					<< " trigger_flags=0x" << std::hex << fltTriggerFlags[i][ii]
 					<< std::dec << std::endl;
 			}
 		}
@@ -1412,7 +1412,7 @@ bool LogicFilter::ConditionalRun()
 
 		//FilterHeader
 		//tf_len += AddFilterMessage(outParts, fltdata, elapse, tf_tf_id);
-		AddFilterMessage(outParts, fltdata, fltOrFlags, elapse, tf_tf_id);
+		AddFilterMessage(outParts, fltdata, fltTriggerFlags, elapse, tf_tf_id);
 
 		//Copy SubTimeFrame
 		unsigned int msg_size = inParts.Size();
@@ -1671,7 +1671,7 @@ void addCustomOptions(bpo::options_description& options)
 			"Triger signals (module_IP Channel_number Offset)")
 		(opt::TriggerExpression.data(),
 			bpo::value<std::string>()->default_value("RPN 0 1 &"),
-			"Trigger expression")
+			"Single expression or ID: expression definitions separated by newlines/semicolons")
 		(opt::TriggerWidth.data(),
 			bpo::value<std::string>()->default_value("10"),
 			"Trigger window width (4 ns unit)")

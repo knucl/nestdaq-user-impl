@@ -47,7 +47,7 @@ public:
 	void CleanUpSubTimeRegion(const std::map<uint32_t, uint32_t>& nEntryInSubTimeRegion);
 	uint32_t *GetTimeRegion();
 	uint32_t GetTimeRegionSize();
-	std::vector<uint32_t> *GetHitOrFlags();
+	std::vector<uint32_t> *GetHitTriggerFlags();
 	void Entry(uint32_t, int, int); // fem, ch, offset
 	void Entry(uint32_t, int, int, uint32_t, uint32_t); // fem, ch, offset, leftwidth, rightwidth
 	void EntryTo(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int); // group_id, subgroup_id, iSubTimeRegion, fem, ch, offset
@@ -89,7 +89,7 @@ private:
 	//int fMarkCount = 0;
 	//uint32_t fMarkMask = 0;
 	std::vector<uint32_t> fHits;
-	std::vector<uint32_t> fHitOrFlags;
+	std::vector<uint32_t> fHitTriggerFlags;
 	int fMarkLen = 5;
 
 	TriggerMap fTMap;
@@ -127,8 +127,8 @@ void Trigger::InitParam()
 	//fMarkMask = 0;
 	fHits.clear();
 	fHits.resize(0);
-	fHitOrFlags.clear();
-	fHitOrFlags.resize(0);
+	fHitTriggerFlags.clear();
+	fHitTriggerFlags.resize(0);
 	if (fTimeRegion != nullptr) {
 		memset(fTimeRegion, 0, fTimeRegionSize * sizeof(uint32_t));
 	}
@@ -198,9 +198,9 @@ uint32_t Trigger::GetTimeRegionSize()
 	return fTimeRegionSize;
 }
 
-std::vector<uint32_t> *Trigger::GetHitOrFlags()
+std::vector<uint32_t> *Trigger::GetHitTriggerFlags()
 {
-	return &fHitOrFlags;
+	return &fHitTriggerFlags;
 }
 
 
@@ -563,8 +563,8 @@ std::vector<uint32_t> *Trigger::Scan(LogicFilterTiming::Frame* timing)
 	LogicFilterTiming::Scope lutTimer(timing, LogicFilterTiming::Lut);
 	fHits.clear();
 	fHits.resize(0);
-	fHitOrFlags.clear();
-	fHitOrFlags.resize(0);
+	fHitTriggerFlags.clear();
+	fHitTriggerFlags.resize(0);
 
 	for (unsigned int i = 0 ; i < fTimeRegionSize - 1; i++) {
 		#if 0
@@ -573,13 +573,13 @@ std::vector<uint32_t> *Trigger::Scan(LogicFilterTiming::Frame* timing)
 			fHits.emplace_back(i + 1);
 		}
 		#else
-			const uint32_t prev = fTMap.LookUpOrFlags(fTimeRegion[i]);
-			const uint32_t curr = fTMap.LookUpOrFlags(fTimeRegion[i + 1]);
+			const uint32_t prev = fTMap.LookUpTriggerFlags(fTimeRegion[i]);
+			const uint32_t curr = fTMap.LookUpTriggerFlags(fTimeRegion[i + 1]);
 			const uint32_t rising = curr & ~prev;
-			// Record newly rising terms, even while another term remains true.
+			// Record newly firing trigger IDs, even while another trigger remains true.
 			if (rising != 0) {
 				fHits.emplace_back(i + 1);
-				fHitOrFlags.emplace_back(rising);
+				fHitTriggerFlags.emplace_back(rising);
 			}
 		#endif
 
