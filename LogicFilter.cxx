@@ -121,7 +121,10 @@ struct LogicFilter : fair::mq::Device
 
 	
 	bool ConditionalRun() override;
-	void PreRun() override { fProfile.Reset(); }
+	void PreRun() override {
+		fProfile.Reset();
+		fTrig->ResetPrescaleCounters();
+	}
 	void PostRun() override;
 
 	bool CheckData(fair::mq::MessagePtr&);
@@ -1671,7 +1674,7 @@ void addCustomOptions(bpo::options_description& options)
 			"Triger signals (module_IP Channel_number Offset)")
 		(opt::TriggerExpression.data(),
 			bpo::value<std::string>()->default_value("RPN 0 1 &"),
-			"Single expression or ID: expression definitions separated by newlines/semicolons")
+			"Single expression or ID[-prescale]: expression definitions separated by newlines/semicolons")
 		(opt::TriggerWidth.data(),
 			bpo::value<std::string>()->default_value("10"),
 			"Trigger window width (4 ns unit)")

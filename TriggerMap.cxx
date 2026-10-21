@@ -2,6 +2,7 @@
 #define TriggerMap_cxx
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdint>
 #include <iostream>
@@ -17,6 +18,10 @@
 class TriggerMap {
 public:
     void MakeTable(const std::string& configuration);
+    uint32_t ApplyPrescale(uint32_t rawFlags);
+    void ResetPrescaleCounters();
+    const std::array<uint64_t, 24>& GetBeforeCounts() const { return fBeforeCounts; }
+    const std::array<uint64_t, 24>& GetAfterCounts() const { return fAfterCounts; }
     bool LookUp(uint32_t value) const { return LookUpTriggerFlags(value) != 0; }
     uint32_t LookUpTriggerFlags(uint32_t value) const {
         // Registered groups not referenced by any formula must not veto it.
@@ -27,17 +32,22 @@ public:
 private:
     struct Definition {
         unsigned id;
+        uint32_t prescale;
         std::string expression;
         std::vector<std::string> commands;
     };
     static std::string Trim(const std::string& value);
     static unsigned Number(const std::string& value, unsigned limit);
+    static uint32_t ParsePrescale(const std::string& text);
     static std::vector<std::string> Compile(const std::string& expression);
     static bool Evaluate(const std::vector<std::string>& commands, uint32_t value,
                          std::vector<uint8_t>& stack);
     std::vector<Definition> fDefinitions;
     std::vector<uint32_t> fTriggerFlagsLut;
     uint32_t fInputMask = 0;
+    std::array<uint32_t, 24> fPrescalePhase{};
+    std::array<uint64_t, 24> fBeforeCounts{};
+    std::array<uint64_t, 24> fAfterCounts{};
 };
 
 std::string TriggerMap::Trim(const std::string& value) {
@@ -141,17 +151,54 @@ bool TriggerMap::Evaluate(const std::vector<std::string>& commands, uint32_t val
     return stack.back();
 }
 
+uint32_t TriggerMap::ParsePrescale(const std::string& text) {
+    const auto value = Trim(text);
+    if (value.empty() || !std::all_of(value.begin(), value.end(),
+        [](unsigned char c) { return std::isdigit(c); })) {
+        throw std::invalid_argument("Invalid prescale: " + text);
+    }
+    const auto n = std::stoull(value);
+    if (n > std::numeric_limits<uint32_t>::max()) {
+        throw std::invalid_argument("Prescale is too large: " + text);
+    }
+    return static_cast<uint32_t>(n);
+}
+
+void TriggerMap::ResetPrescaleCounters() {
+    fPrescalePhase.fill(0);
+    fBeforeCounts.fill(0);
+    fAfterCounts.fill(0);
+}
+
+uint32_t TriggerMap::ApplyPrescale(uint32_t rawFlags) {
+    uint32_t acceptedFlags = 0;
+    for (const auto& definition : fDefinitions) {
+        const unsigned id = definition.id;
+        const uint32_t bit = uint32_t{1} << id;
+        if ((rawFlags & bit) == 0) continue;
+        ++fBeforeCounts[id];
+        const uint32_t n = definition.prescale;
+        if (n == 0) continue;
+        if (++fPrescalePhase[id] == n) {
+            fPrescalePhase[id] = 0;
+            ++fAfterCounts[id];
+            acceptedFlags |= bit;
+        }
+    }
+    return acceptedFlags;
+}
+
 void TriggerMap::MakeTable(const std::string& configuration) {
     std::vector<Definition> definitions;
     uint32_t assigned = 0;
-    const auto add = [&](unsigned id, const std::string& expression) {
+    const auto add = [&](unsigned id, uint32_t prescale, const std::string& expression) {
         const uint32_t bit = uint32_t{1} << id;
         if (assigned & bit) throw std::invalid_argument("Duplicate trigger ID: " + std::to_string(id));
         assigned |= bit;
-        definitions.push_back({id, expression, Compile(expression)});
+        definitions.push_back({id, prescale, expression, Compile(expression)});
     };
     if (configuration.find(':') == std::string::npos && configuration.find(';') == std::string::npos) {
-        add(0, Trim(configuration)); // Legacy single expression: only trigger 0.
+        add(0, 1, Trim(configuration)); // Legacy single expression: ID 0, no prescale.
     } else {
         std::string lines = configuration;
         std::replace(lines.begin(), lines.end(), ';', '\n');
@@ -162,8 +209,18 @@ void TriggerMap::MakeTable(const std::string& configuration) {
             if (line.empty()) continue;
             const auto colon = line.find(':');
             if (colon == std::string::npos || line.find(':', colon + 1) != std::string::npos)
-                throw std::invalid_argument("Use 'trigger-ID: expression' on each line");
-            add(Number(Trim(line.substr(0, colon)), 24), Trim(line.substr(colon + 1)));
+                throw std::invalid_argument("Use 'ID[-prescale]: expression' on each line");
+            const auto key = Trim(line.substr(0, colon));
+            const auto dash = key.find('-');
+            unsigned id;
+            uint32_t prescale = 1;
+            if (dash == std::string::npos) {
+                id = Number(key, 24);
+            } else {
+                id = Number(Trim(key.substr(0, dash)), 24);
+                prescale = ParsePrescale(key.substr(dash + 1));
+            }
+            add(id, prescale, Trim(line.substr(colon + 1)));
         }
     }
     if (definitions.empty()) throw std::invalid_argument("No trigger definitions");
@@ -185,8 +242,11 @@ void TriggerMap::MakeTable(const std::string& configuration) {
     fDefinitions = std::move(definitions);
     fTriggerFlagsLut = std::move(table);
     fInputMask = static_cast<uint32_t>(mapSize - 1);
+    ResetPrescaleCounters();
     for (const auto& definition : fDefinitions)
-        std::cout << "# Trigger ID " << definition.id << ": " << definition.expression << '\n';
+        std::cout << "# Trigger ID " << definition.id
+                  << " prescale=" << definition.prescale
+                  << ": " << definition.expression << '\n';
 }
 
 void TriggerMap::Dump() const {

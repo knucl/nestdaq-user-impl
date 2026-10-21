@@ -139,7 +139,41 @@ separate trigger IDs if independent edges are required.
 
 HBF boundary behavior is unchanged: bin 0 is the reference state; comparisons
 start at bins 0->1. No bin-0 trigger or cross-HBF state is added. Window/offset
-and two-input subgroup behavior are unchanged. No prescaling is implemented.
+and two-input subgroup behavior are unchanged.
+
+### Periodic prescaling
+
+Use `ID-N: expression` to accept every N-th rising edge of that ID. `ID: expression`
+defaults to N=1. N=0 disables acceptance by that ID but keeps its raw truth bit
+and before-prescale count. N must be a decimal uint32_t (0..4294967295).
+
+```bash
+expressions='0-100: 0 & 1
+1-10: 0 & 1 & !3
+2-1: 0 & 1 & !3 & 2
+3-1: 0 & 1 & !3 & 2 & 4'
+redis-cli -u "$server" HSET parameters:LogicFilter trigger-expression "$expressions"
+```
+
+Each ID has an independent phase counter. The first acceptance is its N-th
+edge, not its first edge. Phases persist across HBFs and TFs, including empty
+ones, and reset in LogicFilter::PreRun (and after successful MakeTable).
+Settings are loaded during initialization, not changed live in RUNNING.
+
+If any ID accepts a time bin, ONE TrgTime is emitted. Its flags remain ALL
+simultaneously rising IDs BEFORE prescale, including N=0 IDs. For example,
+raw=0x3 and accepted=0x2 emits type=0xaa000003. If no ID accepts, no record is
+emitted. The post-prescale mask is not serialized; the existing binary format
+and type helpers are unchanged. These are exact-bin rising flags, not a new
+physical-event association window or a mask of continuously active conditions.
+
+Before/after uint64_t counts are available via GetBeforeCounts()/GetAfterCounts()
+on Trigger and TriggerMap. Before counts include disabled IDs; after counts
+count accepted IDs, not merged records. Counts/phases are per worker, reset per
+run, and are NOT yet exported to Redis or a scaler file. This is periodic
+prescaling local to each process, not globally ordered every-N-th sampling;
+periodic input and TF distribution may correlate with sampling. No spill reset
+or spill-gate handling is added. Configuration logs include each ID's factor.
 
 The public accessors are now `GetHitTriggerFlags()`, `LookUpTriggerFlags()` and
 `Filter::GetTrgTimeTriggerFlags()`. Old OR-named accessors are removed.

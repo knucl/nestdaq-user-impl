@@ -62,6 +62,9 @@ public:
 	int GetMarkLen() {return fMarkLen;};
 	//void SetLogic(int);
 	void MakeTable(std::string &);
+	void ResetPrescaleCounters() { fTMap.ResetPrescaleCounters(); }
+	const std::array<uint64_t, 24>& GetBeforeCounts() const { return fTMap.GetBeforeCounts(); }
+	const std::array<uint64_t, 24>& GetAfterCounts() const { return fTMap.GetAfterCounts(); }
 	void SetfnEntryInSubTimeRegion(const std::map<uint32_t, uint32_t>& nEntryInSubTimeRegion);
 protected:
 private:
@@ -575,11 +578,15 @@ std::vector<uint32_t> *Trigger::Scan(LogicFilterTiming::Frame* timing)
 		#else
 			const uint32_t prev = fTMap.LookUpTriggerFlags(fTimeRegion[i]);
 			const uint32_t curr = fTMap.LookUpTriggerFlags(fTimeRegion[i + 1]);
-			const uint32_t rising = curr & ~prev;
-			// Record newly firing trigger IDs, even while another trigger remains true.
-			if (rising != 0) {
-				fHits.emplace_back(i + 1);
-				fHitTriggerFlags.emplace_back(rising);
+			const uint32_t rawFlags = curr & ~prev;
+			if (rawFlags != 0) {
+				const uint32_t acceptedFlags = fTMap.ApplyPrescale(rawFlags);
+				if (acceptedFlags != 0) {
+					fHits.emplace_back(i + 1);
+					// Preserve all simultaneous PRE-prescale trigger IDs, including
+					// disabled IDs when another ID accepted the same time bin.
+					fHitTriggerFlags.emplace_back(rawFlags);
+				}
 			}
 		#endif
 
