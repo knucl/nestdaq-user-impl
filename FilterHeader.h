@@ -46,6 +46,25 @@ struct Header {
 constexpr unsigned char FLT_TDC_TYPE {0xaa};
 constexpr uint32_t TRG_TIME_RECORD_TYPE_MASK {0xff000000};
 constexpr uint32_t TRG_TIME_TRIGGER_FLAGS_MASK   {0x00ffffff};
+constexpr uint32_t TRG_TIME_BEFORE_FLAGS_MASK {0x00000fff};
+constexpr uint32_t TRG_TIME_AFTER_FLAGS_MASK {0x00fff000};
+
+// IDs 0..11: before-prescale edges; bits 12..23: accepted IDs.
+constexpr uint32_t MakeTrgTimePrescaleFlags(uint32_t before, uint32_t after)
+{
+    return (before & TRG_TIME_BEFORE_FLAGS_MASK)
+        | ((after & before & TRG_TIME_BEFORE_FLAGS_MASK) << 12);
+}
+
+constexpr uint32_t GetTrgTimeBeforeFlags(uint32_t type)
+{
+    return type & TRG_TIME_BEFORE_FLAGS_MASK;
+}
+
+constexpr uint32_t GetTrgTimeAfterFlags(uint32_t type)
+{
+    return (type & TRG_TIME_AFTER_FLAGS_MASK) >> 12;
+}
 constexpr uint32_t TRG_TIME_RECORD_TYPE {
     static_cast<uint32_t>(FLT_TDC_TYPE) << 24
 };

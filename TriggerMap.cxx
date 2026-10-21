@@ -20,8 +20,8 @@ public:
     void MakeTable(const std::string& configuration);
     uint32_t ApplyPrescale(uint32_t rawFlags);
     void ResetPrescaleCounters();
-    const std::array<uint64_t, 24>& GetBeforeCounts() const { return fBeforeCounts; }
-    const std::array<uint64_t, 24>& GetAfterCounts() const { return fAfterCounts; }
+    const std::array<uint64_t, 12>& GetBeforeCounts() const { return fBeforeCounts; }
+    const std::array<uint64_t, 12>& GetAfterCounts() const { return fAfterCounts; }
     bool LookUp(uint32_t value) const { return LookUpTriggerFlags(value) != 0; }
     uint32_t LookUpTriggerFlags(uint32_t value) const {
         // Registered groups not referenced by any formula must not veto it.
@@ -45,9 +45,9 @@ private:
     std::vector<Definition> fDefinitions;
     std::vector<uint32_t> fTriggerFlagsLut;
     uint32_t fInputMask = 0;
-    std::array<uint32_t, 24> fPrescalePhase{};
-    std::array<uint64_t, 24> fBeforeCounts{};
-    std::array<uint64_t, 24> fAfterCounts{};
+    std::array<uint32_t, 12> fPrescalePhase{};
+    std::array<uint64_t, 12> fBeforeCounts{};
+    std::array<uint64_t, 12> fAfterCounts{};
 };
 
 std::string TriggerMap::Trim(const std::string& value) {
@@ -215,9 +215,9 @@ void TriggerMap::MakeTable(const std::string& configuration) {
             unsigned id;
             uint32_t prescale = 1;
             if (dash == std::string::npos) {
-                id = Number(key, 24);
+                id = Number(key, 12);
             } else {
-                id = Number(Trim(key.substr(0, dash)), 24);
+                id = Number(Trim(key.substr(0, dash)), 12);
                 prescale = ParsePrescale(key.substr(dash + 1));
             }
             add(id, prescale, Trim(line.substr(colon + 1)));

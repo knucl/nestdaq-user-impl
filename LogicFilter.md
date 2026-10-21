@@ -79,12 +79,13 @@ Computational cost depends on number of Subgroups. If your trigger logic has les
 
 ## Independent multi-trigger definitions (this branch)
 
-This branch removes OR-term flagging. Each explicit trigger ID owns one bit
-in the lower 24 bits of `TrgTime::type`; the upper byte remains `0xaa`.
+This branch removes OR-term flagging. Each explicit trigger ID owns a before
+bit (0..11) and an after-prescale bit (12..23) in `TrgTime::type`.
+The upper byte remains `0xaa`.
 The serialized `TrgTime` size/layout is unchanged, but flag semantics differ
 from the OR-flags branch. Do not interpret old files with the new ID mapping.
 
-Use decimal trigger IDs 0..23, separated by a newline or semicolon in the SAME
+Use decimal trigger IDs 0..11, separated by a newline or semicolon in the SAME
 Redis `trigger-expression` value. Group IDs inside formulas still refer to
 `trigger-signals`. IDs may be sparse and line order does not assign IDs.
 
@@ -106,7 +107,7 @@ multiline value first and write once. A compact equivalent is:
 
 Each expression accepts infix `!`, `&`, `|`, parentheses (precedence in that
 order), or an explicit `RPN` / `rpn` prefix, e.g. `3: RPN 0 1 & 2 &`.
-Duplicate IDs, IDs >=24, empty/malformed expressions, and unsupported tokens
+Duplicate IDs, IDs >=12, empty/malformed expressions, and unsupported tokens
 are rejected during initialization. Decimal group IDs must be 0..31.
 
 All expressions are evaluated during initialization into ONE uint32_t LUT.
@@ -160,11 +161,15 @@ edge, not its first edge. Phases persist across HBFs and TFs, including empty
 ones, and reset in LogicFilter::PreRun (and after successful MakeTable).
 Settings are loaded during initialization, not changed live in RUNNING.
 
-If any ID accepts a time bin, ONE TrgTime is emitted. Its flags remain ALL
-simultaneously rising IDs BEFORE prescale, including N=0 IDs. For example,
-raw=0x3 and accepted=0x2 emits type=0xaa000003. If no ID accepts, no record is
-emitted. The post-prescale mask is not serialized; the existing binary format
-and type helpers are unchanged. These are exact-bin rising flags, not a new
+If any ID accepts a time bin, ONE TrgTime is emitted. Bits 0..11 contain ALL
+simultaneously rising IDs BEFORE prescale, including N=0 IDs. Bits 12..23
+contain the accepted IDs, shifted by 12. For example, raw=0x3 and
+accepted=0x2 emits type=0xaa002003. If no ID accepts, no record is emitted;
+rejected-only edges are counted but not saved as TrgTime records.
+GetTrgTimeBeforeFlags(type) and GetTrgTimeAfterFlags(type) return unshifted
+12-bit masks. GetTrgTimeTriggerFlags(type) still returns the full 24-bit mask.
+The binary record layout is unchanged, but flag interpretation has changed:
+old files must not be interpreted using this new mapping. These are exact-bin rising flags, not a new
 physical-event association window or a mask of continuously active conditions.
 
 Before/after uint64_t counts are available via GetBeforeCounts()/GetAfterCounts()

@@ -18,6 +18,7 @@
 
 #include "UnpackTdc.h"
 #include "SubTimeFrameHeader.h"
+#include "FilterHeader.h"
 #include "TriggerMap.cxx"
 #include "SignalParser.h"
 #include "LogicFilterTiming.h"
@@ -63,8 +64,8 @@ public:
 	//void SetLogic(int);
 	void MakeTable(std::string &);
 	void ResetPrescaleCounters() { fTMap.ResetPrescaleCounters(); }
-	const std::array<uint64_t, 24>& GetBeforeCounts() const { return fTMap.GetBeforeCounts(); }
-	const std::array<uint64_t, 24>& GetAfterCounts() const { return fTMap.GetAfterCounts(); }
+	const std::array<uint64_t, 12>& GetBeforeCounts() const { return fTMap.GetBeforeCounts(); }
+	const std::array<uint64_t, 12>& GetAfterCounts() const { return fTMap.GetAfterCounts(); }
 	void SetfnEntryInSubTimeRegion(const std::map<uint32_t, uint32_t>& nEntryInSubTimeRegion);
 protected:
 private:
@@ -583,9 +584,9 @@ std::vector<uint32_t> *Trigger::Scan(LogicFilterTiming::Frame* timing)
 				const uint32_t acceptedFlags = fTMap.ApplyPrescale(rawFlags);
 				if (acceptedFlags != 0) {
 					fHits.emplace_back(i + 1);
-					// Preserve all simultaneous PRE-prescale trigger IDs, including
-					// disabled IDs when another ID accepted the same time bin.
-					fHitTriggerFlags.emplace_back(rawFlags);
+					// Keep before-prescale edges and actual acceptance separately.
+					fHitTriggerFlags.emplace_back(
+						Filter::MakeTrgTimePrescaleFlags(rawFlags, acceptedFlags));
 				}
 			}
 		#endif
