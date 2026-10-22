@@ -399,7 +399,7 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 							#endif
 
 							if (hit < fTimeRegionSize - leftwidth) {
-								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
+								for (int k = -static_cast<int>(leftwidth) ; k < static_cast<int>(rightwidth) + 1 ; k++) {
 									if ((hit + k) < fTimeRegionSize) {
 										if(isMemberOfSubGroup){
 											const uint32_t t = hit + k;
@@ -433,7 +433,7 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 							//	<< " Hit: " << hit << std::endl;
 
 							if (hit < fTimeRegionSize - leftwidth) {
-								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
+								for (int k = -static_cast<int>(leftwidth) ; k < static_cast<int>(rightwidth) + 1 ; k++) {
 									if ((hit + k) < fTimeRegionSize) {
 										if(isMemberOfSubGroup){
 											const uint32_t t = hit + k;
@@ -501,7 +501,7 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 							//	<< " Hit: " << hit << std::endl;
 
 							if (hit < fTimeRegionSize - leftwidth) {
-								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
+								for (int k = -static_cast<int>(leftwidth) ; k < static_cast<int>(rightwidth) + 1 ; k++) {
 									if ((hit + k) < fTimeRegionSize) {
 										if(isMemberOfSubGroup){
 											const uint32_t t = hit + k;
