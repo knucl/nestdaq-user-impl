@@ -353,191 +353,65 @@ bool Trigger::CheckEntryFEM(uint32_t fem)
 
 void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 {
-	if (fEntryCh.count(fem) >= 1) {
-		uint64_t *tdcval;
-		tdcval = reinterpret_cast<uint64_t *>(pdata);
+    // Temporary experiment: decode once per word, then match registered inputs.
+    const auto entry = fEntryCh.find(fem);
+    if (entry == fEntryCh.end()) return;
+    const auto& channels = entry->second;
+    const auto& delays = fEntryChDelay.at(fem);
+    const auto& leftWidths = fEntryChLeftWidth.at(fem);
+    const auto& rightWidths = fEntryChRightWidth.at(fem);
+    const auto& markBits = fEntryChBit.at(fem);
+    const auto& subgroups = fEntryChiSubTimeRegion.at(fem);
+    const auto* words = reinterpret_cast<const uint64_t*>(pdata);
 
-		for (unsigned int i = 0 ; i < fEntryCh[fem].size() ; i++) {
-			int ch = fEntryCh[fem][i];
-			int delay = fEntryChDelay[fem][i];
-			uint32_t leftwidth = fEntryChLeftWidth[fem][i];
-			uint32_t rightwidth = fEntryChRightWidth[fem][i];
-			uint32_t markbit = fEntryChBit[fem][i];
-			uint32_t iSubTimeRegion = fEntryChiSubTimeRegion[fem][i];
+    const auto markWords = [&](auto unpack, auto tdc, int hitType, bool useRightBoundary) {
+        for (std::size_t j = 0; j < len / sizeof(uint64_t); ++j) {
+            if (unpack(words[j], &tdc) != hitType) continue;
+            for (std::size_t i = 0; i < channels.size(); ++i) {
+                if (tdc.ch != channels[i]) continue;
+                const uint32_t leftwidth = leftWidths[i];
+                const uint32_t rightwidth = rightWidths[i];
+                const uint32_t markbit = markBits[i];
+                const uint32_t subgroup = subgroups[i];
+                const uint32_t hit = tdc.tdc4n + delays[i];
+                // Preserve the old format-specific boundary checks.
+                const uint32_t boundary = useRightBoundary ? rightwidth : leftwidth;
+                if (hit >= fTimeRegionSize - boundary) continue;
+                uint64_t* subBits = subgroup != UINT32_MAX
+                    ? fSubTimeRegions[subgroup][markbit == 1u ? 0u : 1u].data() : nullptr;
+                // Preserve legacy signed/unsigned loop semantics as well;
+                // fixing those is separate from this loop-order experiment.
+                for (int k = -static_cast<int>(leftwidth);
+                     useRightBoundary ? k < static_cast<int>(rightwidth) + 1
+                                      : static_cast<uint32_t>(k) < rightwidth + 1; ++k) {
+                    const uint32_t t = hit + k;
+                    if (t < fTimeRegionSize) {
+                        if (subBits) subBits[t / 64] |= uint64_t{1} << (t % 64);
+                        else fTimeRegion[t] |= markbit;
+                    } else if (static_cast<int>(hit) + k >= 0) {
+                        std::cout << "#E Over range hit!"
+                            << " FEM: " << std::hex << fem
+                            << " Ch: " << std::dec << channels[i]
+                            << " Hit: " << hit << std::endl;
+                    }
+                }
+            }
+        }
+    };
 
-			bool isMemberOfSubGroup = (iSubTimeRegion != UINT32_MAX); // true for member of subgroup, false for not of subgroup
-			// Subgroup input bits are 1/2 in registration order, independent of FE channel ID.
-			const std::size_t input = markbit == 1u ? 0u : 1u;
-			uint64_t* subBits = isMemberOfSubGroup
-				? fSubTimeRegions[iSubTimeRegion][input].data() : nullptr;
-
-
-			#if 0
-			std::cout << "#DD Trigger::Mark " 
-				<< " FEM: " << std::hex << fem
-				<< " Ch: " << std::dec << ch
-				<< " MarkBit: " << markbit << std::endl;
-			#endif
-
-			for (unsigned int j = 0 ; j < (len / sizeof(uint64_t)) ; j++) {
-
-				if (type == SubTimeFrame::TDC64H) {
-					struct TDC64H::tdc64 tdc;
-					if (TDC64H::Unpack(tdcval[j], &tdc) == TDC64H::T_TDC) {
-						if (tdc.ch == ch) {
-							#if DEBUG_MORE32 & 0
-							std::cout << "\n[Trigger::Mark] TDC64H hit found" << std::endl;
-							#endif
-							uint32_t hit = tdc.tdc4n + delay;
-
-							#if 0
-							std::cout << "#D Mark"
-								<< " FEM: " << std::hex << fem
-								<< " Ch: " << std::dec << ch
-								<< " Hit: " << hit
-								<< std::endl;
-							#endif
-
-							if (hit < fTimeRegionSize - leftwidth) {
-								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
-									if ((hit + k) < fTimeRegionSize) {
-										if(isMemberOfSubGroup){
-											const uint32_t t = hit + k;
-											subBits[t / 64] |= uint64_t{1} << (t % 64);
-										}
-										else{
-											fTimeRegion[hit + k] |= markbit;
-										}
-									} else if ((static_cast<int>(hit) + k) >= 0) {
-										std::cout << "#E Over range hit!"
-											<< " FEM: " << std::hex << fem
-											<< " Ch: " << std::dec << ch
-											<< " Hit: " << hit
-											<< std::endl;
-									}
-								}
-							}
-						}
-					}
-				} else
-				if (type == SubTimeFrame::TDC64L) {
-					struct TDC64L::tdc64 tdc;
-					if (TDC64L::Unpack(tdcval[j], &tdc) == TDC64L::T_TDC) {
-						if (tdc.ch == ch) {
-							#if DEBUG_MORE32 & 0
-							std::cout << "\n[Trigger::Mark] TDC64L hit found" << std::endl;
-							#endif
-							uint32_t hit = tdc.tdc4n + delay;
-
-							//std::cout << "#D Mark Ch: " << std::dec << ch
-							//	<< " Hit: " << hit << std::endl;
-
-							if (hit < fTimeRegionSize - leftwidth) {
-								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
-									if ((hit + k) < fTimeRegionSize) {
-										if(isMemberOfSubGroup){
-											const uint32_t t = hit + k;
-											subBits[t / 64] |= uint64_t{1} << (t % 64);
-										}
-										else{
-											fTimeRegion[hit + k] |= markbit;
-										}
-									} else if ((static_cast<int>(hit) + k) >= 0) {
-										std::cout << "#E Over range hit!"
-											<< " FEM: " << std::hex << fem
-											<< " Ch: " << std::dec << ch
-											<< " Hit: " << hit
-											<< std::endl;
-									}
-								}
-							}
-						}
-					}
-				} else
-
-				if (type == SubTimeFrame::TDC64H_V3) {
-					struct TDC64H_V3::tdc64 tdc;
-					if (TDC64H_V3::Unpack(tdcval[j], &tdc) == TDC64H_V3::T_TDC) {
-						if (tdc.ch == ch) {
-							#if DEBUG_MORE32 & 0
-							std::cout << "\n[Trigger::Mark] TDC64H_V3 hit found" << std::endl;
-							#endif
-							uint32_t hit = tdc.tdc4n + delay;
-
-							if (hit < fTimeRegionSize - rightwidth) {
-								for (int k = -static_cast<int>(leftwidth) ; k < static_cast<int>(rightwidth) + 1 ; k++) {
-									if ((hit + k) < fTimeRegionSize) {
-										if(isMemberOfSubGroup){
-											const uint32_t t = hit + k;
-											subBits[t / 64] |= uint64_t{1} << (t % 64);
-										} // if(isMemberOfSubGroup)
-										else{
-											fTimeRegion[hit + k] |= markbit;
-										} // if(isMemberOfSubGroup) else
-									} // if((hit + k) < fTimeRegionSize)
-									else if ((static_cast<int>(hit) + k) >= 0) {
-										std::cout << "#E Over range hit!"
-											<< " FEM: " << std::hex << fem
-											<< " Ch: " << std::dec << ch
-											<< " Hit: " << hit
-											<< " Mark: " << static_cast<int>(hit) + k
-											<< std::endl;
-									}  // else if ((static_cast<int>(hit) + k) >= 0)
-								} // for(int k = -1 * static_cast<int>(leftwidth) ; k < (rightwidth + 1) ; k++)
-							} // if(hit < fTimeRegionSize - rightwidth))
-						} // if (tdc.ch == ch)
-					} // if (TDC64H_V3::Unpack(tdcval[j], &tdc) == TDC64H_V3::T_TDC)
-				} else
-				if (type == SubTimeFrame::TDC64L_V3) {
-					struct TDC64L_V3::tdc64 tdc;
-					if (TDC64L_V3::Unpack(tdcval[j], &tdc) == TDC64L_V3::T_TDC) {
-						if (tdc.ch == ch) {
-							#if DEBUG_MORE32 & 0
-							std::cout << "\n[Trigger::Mark] TDC64L_V3 hit found" << std::endl;
-							#endif
-							uint32_t hit = tdc.tdc4n + delay;
-
-							//std::cout << "#D Mark Ch: " << std::dec << ch
-							//	<< " Hit: " << hit << std::endl;
-
-							if (hit < fTimeRegionSize - leftwidth) {
-								for (int k = -1 * leftwidth ; k < (rightwidth + 1) ; k++) {
-									if ((hit + k) < fTimeRegionSize) {
-										if(isMemberOfSubGroup){
-											const uint32_t t = hit + k;
-											subBits[t / 64] |= uint64_t{1} << (t % 64);
-										}
-										else{
-											fTimeRegion[hit + k] |= markbit;
-										}
-									} else if ((static_cast<int>(hit) + k) >= 0) {
-										std::cout << "#E Over range hit!"
-											<< " FEM: " << std::hex << fem
-											<< " Ch: " << std::dec << ch
-											<< " Hit: " << hit
-											<< " Mark: " << static_cast<int>(hit) + k
-											<< std::endl;
-									}
-								}
-							}
-						}
-					}
-				}
-
-			}
-
-			//fMarkMask |= (0x1 << fMarkCount);
-			//fMarkCount++;
-			//std::cout << "#D Trig Mark entry : Module: " << fem << " Ch: " << ch << std::endl;
-			//if (static_cast<unsigned int>(fMarkCount) > sizeof(uint32_t)) {
-			//	std::cerr << "Entry Ch. exceed " << sizeof(uint32_t) << std::endl;
-			//}
-			//assert(fMarkCount <= static_cast<int>(sizeof(uint32_t)));
-		}
-	}
-
-
-	return;
+    if (type == SubTimeFrame::TDC64H) {
+        markWords([](uint64_t w, TDC64H::tdc64* t) { return TDC64H::Unpack(w, t); },
+                  TDC64H::tdc64{}, TDC64H::T_TDC, false);
+    } else if (type == SubTimeFrame::TDC64L) {
+        markWords([](uint64_t w, TDC64L::tdc64* t) { return TDC64L::Unpack(w, t); },
+                  TDC64L::tdc64{}, TDC64L::T_TDC, false);
+    } else if (type == SubTimeFrame::TDC64H_V3) {
+        markWords([](uint64_t w, TDC64H_V3::tdc64* t) { return TDC64H_V3::Unpack(w, t); },
+                  TDC64H_V3::tdc64{}, TDC64H_V3::T_TDC, true);
+    } else if (type == SubTimeFrame::TDC64L_V3) {
+        markWords([](uint64_t w, TDC64L_V3::tdc64* t) { return TDC64L_V3::Unpack(w, t); },
+                  TDC64L_V3::tdc64{}, TDC64L_V3::T_TDC, false);
+    }
 }
 
 std::vector<uint32_t> *Trigger::Scan(LogicFilterTiming::Frame* timing)
