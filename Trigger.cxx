@@ -379,11 +379,8 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
                 if (hit >= fTimeRegionSize - boundary) continue;
                 uint64_t* subBits = subgroup != UINT32_MAX
                     ? fSubTimeRegions[subgroup][markbit == 1u ? 0u : 1u].data() : nullptr;
-                // Preserve legacy signed/unsigned loop semantics as well;
-                // fixing those is separate from this loop-order experiment.
                 for (int k = -static_cast<int>(leftwidth);
-                     useRightBoundary ? k < static_cast<int>(rightwidth) + 1
-                                      : static_cast<uint32_t>(k) < rightwidth + 1; ++k) {
+                     k < static_cast<int>(rightwidth) + 1; ++k) {
                     const uint32_t t = hit + k;
                     if (t < fTimeRegionSize) {
                         if (subBits) subBits[t / 64] |= uint64_t{1} << (t % 64);
