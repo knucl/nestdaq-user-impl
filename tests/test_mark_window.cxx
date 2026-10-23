@@ -23,6 +23,7 @@ int main()
         trigger.EntryTo(0, UINT32_MAX, UINT32_MAX, 101, 0, offset);
         trigger.EntryTo(1, 0, 0, 101, 0, offset);
         trigger.EntryTo(1, 0, 0, 101, 1, offset);
+        trigger.BuildChannelEntryIndex();
         trigger.SetSubTimeRegion(256, {{0, 2}});
         trigger.CleanUpTimeRegion();
         uint64_t words[] = {hitWord(type, 0, tick), hitWord(type, 1, tick)};

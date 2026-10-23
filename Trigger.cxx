@@ -54,6 +54,7 @@ public:
 	void EntryTo(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int); // group_id, subgroup_id, iSubTimeRegion, fem, ch, offset
 	void EntryTo(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int, uint32_t, uint32_t); // group_id, subgroup_id, iSubTimeRegion, fem, ch, offset, leftwidth, rightwidth
 	void ClearEntry();
+	void BuildChannelEntryIndex();
 	bool CheckEntryFEM(uint32_t);
 	void Mark(unsigned char *, int, int, uint32_t);
 	std::vector<uint32_t> *Scan(LogicFilterTiming::Frame* timing = nullptr);
@@ -69,6 +70,9 @@ public:
 	void SetfnEntryInSubTimeRegion(const std::map<uint32_t, uint32_t>& nEntryInSubTimeRegion);
 protected:
 private:
+	using ChannelEntryTable = std::array<std::vector<std::size_t>, 256>;
+	// FE ID -> channel -> indices in the existing registration vectors.
+	std::map<uint32_t, ChannelEntryTable> fEntryIndicesByChannel;
 	//std::vector<struct CoinCh> fEntry;
 	std::map< uint32_t, std::vector<int> > fEntryCh;
 	std::map< uint32_t, std::vector<int> > fEntryChDelay;
@@ -243,7 +247,7 @@ bool Trigger::CheckEntryFEM(uint64_t fem)
 
 void Trigger::Entry(uint32_t fem, int ch, int offset)
 {
-
+	fEntryIndicesByChannel.clear();
 	fEntryCh[fem].emplace_back(ch);
 	fEntryChDelay[fem].emplace_back(offset);
 	fEntryChBit[fem].emplace_back(0x0000001 << fEntryCounts_old);
@@ -270,6 +274,7 @@ void Trigger::EntryTo(uint32_t group_id, uint32_t subgroup_id, uint32_t iSubTime
 	    fEntryCounts[std::make_pair(group_id, subgroup_id)] >= 2) {
 		throw std::invalid_argument("Each subgroup supports exactly 2 inputs; third input rejected");
 	}
+	fEntryIndicesByChannel.clear(); // Registrations changed; rebuild before Mark.
 	fEntryCh[fem].emplace_back(ch);
 	fEntryChDelay[fem].emplace_back(offset);
 	if(subgroup_id == SignalParser::NO_SUBGROUP){
@@ -332,6 +337,7 @@ void Trigger::EntryTo(uint32_t group_id, uint32_t subgroup_id, uint32_t iSubTime
 
 void Trigger::ClearEntry()
 {
+	fEntryIndicesByChannel.clear();
 	fEntryCh.clear();
 	fEntryChDelay.clear();
 	fEntryChBit.clear();
@@ -344,6 +350,24 @@ void Trigger::ClearEntry()
 	return;
 }
 
+void Trigger::BuildChannelEntryIndex()
+{
+    std::map<uint32_t, ChannelEntryTable> tables;
+    for (const auto& entry : fEntryCh) {
+        const uint32_t fem = entry.first;
+        const auto& channels = entry.second;
+        auto& table = tables[fem];
+        for (std::size_t i = 0; i < channels.size(); ++i) {
+            const int ch = channels[i];
+            if (ch < 0 || static_cast<std::size_t>(ch) >= table.size()) {
+                throw std::invalid_argument("Channel number must be 0..255");
+            }
+            table[ch].push_back(i); // Preserve duplicate registrations and order.
+        }
+    }
+    fEntryIndicesByChannel.swap(tables);
+}
+
 bool Trigger::CheckEntryFEM(uint32_t fem)
 {
 	bool rval = false;
@@ -353,10 +377,11 @@ bool Trigger::CheckEntryFEM(uint32_t fem)
 
 void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
 {
-    // Temporary experiment: decode once per word, then match registered inputs.
+    // Decode once per word and visit only registrations for the decoded channel.
     const auto entry = fEntryCh.find(fem);
     if (entry == fEntryCh.end()) return;
     const auto& channels = entry->second;
+    const auto& table = fEntryIndicesByChannel.at(fem);
     const auto& delays = fEntryChDelay.at(fem);
     const auto& leftWidths = fEntryChLeftWidth.at(fem);
     const auto& rightWidths = fEntryChRightWidth.at(fem);
@@ -367,8 +392,8 @@ void Trigger::Mark(unsigned char *pdata, int len, int fem, uint32_t type)
     const auto markWords = [&](auto unpack, auto tdc, int hitType, bool useRightBoundary) {
         for (std::size_t j = 0; j < len / sizeof(uint64_t); ++j) {
             if (unpack(words[j], &tdc) != hitType) continue;
-            for (std::size_t i = 0; i < channels.size(); ++i) {
-                if (tdc.ch != channels[i]) continue;
+            if (tdc.ch < 0 || static_cast<std::size_t>(tdc.ch) >= table.size()) continue;
+            for (std::size_t i : table[tdc.ch]) {
                 const uint32_t leftwidth = leftWidths[i];
                 const uint32_t rightwidth = rightWidths[i];
                 const uint32_t markbit = markBits[i];

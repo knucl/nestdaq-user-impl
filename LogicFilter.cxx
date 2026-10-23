@@ -347,6 +347,7 @@ void LogicFilter::InitTask()
 				+ std::to_string(entry.second) + ")");
 		}
 	}
+	fTrig->BuildChannelEntryIndex();
 	fTrig->SetfnEntryInSubTimeRegion(fNEntryInSubTimeRegion_LogicFilter);
 	std::cout << "\tDone." << std::endl;
 
