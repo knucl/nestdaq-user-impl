@@ -59,6 +59,8 @@ struct LogicFilter : fair::mq::Device
 		static constexpr std::string_view TriggerExpression     {"trigger-expression"};
 		static constexpr std::string_view TriggerWidth       {"trigger-width"};
 		static constexpr std::string_view ProfileInterval    {"profile-interval-ms"};
+		static constexpr std::string_view SpillGateBit       {"spill-gate-bit"};
+		static constexpr std::string_view SpillGateActiveHigh {"spill-gate-active-high"};
 	};
 
 	struct DataBlock {
@@ -124,6 +126,8 @@ struct LogicFilter : fair::mq::Device
 	void PreRun() override {
 		fProfile.Reset();
 		fTrig->ResetPrescaleCounters();
+		fGateOn = fGateOff = fGateUnknown = fGateConflict = 0;
+		fGateReport = std::chrono::steady_clock::now();
 	}
 	void PostRun() override;
 
@@ -160,6 +164,14 @@ private:
 	std::string fDQMChannelName;
 	std::string fName;
 	LogicFilterTiming::Profiler fProfile;
+	int fSpillGateBit = 0;
+	bool fSpillGateActiveHigh = true;
+	uint64_t fGateOn = 0, fGateOff = 0, fGateUnknown = 0, fGateConflict = 0;
+	std::chrono::steady_clock::time_point fGateReport;
+	SpillGateEvidence ReadSpillGate(
+		const std::vector<std::vector<DataBlock>>& blocks,
+		FairMQParts& parts, std::size_t index) const;
+	void ReportSpillGate();
 
 	int fNumDestination {0};
 	uint32_t fDirection {0};
@@ -191,6 +203,15 @@ private:
 void LogicFilter::InitTask()
 {
 	using opt = OptionKey;
+	fSpillGateBit = std::stoi(fConfig->GetProperty<std::string>(opt::SpillGateBit.data()));
+	if (fSpillGateBit < -1 || fSpillGateBit > 15)
+		throw std::invalid_argument("spill-gate-bit must be -1..15");
+	const auto polarity = fConfig->GetProperty<std::string>(opt::SpillGateActiveHigh.data());
+	if (polarity != "true" && polarity != "false")
+		throw std::invalid_argument("spill-gate-active-high must be true or false");
+	fSpillGateActiveHigh = polarity == "true";
+	LOG(info) << "Spill gate: HBD1 flag bit=" << fSpillGateBit
+		<< " active-high=" << fSpillGateActiveHigh << "; unknown selects ON triggers";
 
 	fInputChannelName  = fConfig->GetValue<std::string>(opt::InputChannelName.data());
 	fOutputChannelName = fConfig->GetValue<std::string>(opt::OutputChannelName.data());
@@ -948,6 +969,35 @@ int LogicFilter::MakeBlockMap2(
 	return 0;
 }
 
+SpillGateEvidence LogicFilter::ReadSpillGate(
+    const std::vector<std::vector<DataBlock>>& blocks,
+    FairMQParts& parts, std::size_t index) const
+{
+    SpillGateEvidence evidence;
+    const auto inspect = [&](const DataBlock& block) {
+        if (block.msg_index < 0 || static_cast<std::size_t>(block.msg_index) >= parts.Size()) return;
+        const auto& part = parts.At(block.msg_index);
+        evidence.AddPart(part->GetData(), part->GetSize(), block.Type,
+                         fSpillGateBit, fSpillGateActiveHigh);
+    };
+    for (const auto& fe : blocks) {
+        if (index >= fe.size()) continue;
+        inspect(fe[index]);
+        // Split layout: data is followed by its separate heartbeat delimiter.
+        if (!fe[index].is_HB && index + 1 < fe.size() && fe[index + 1].is_HB)
+            inspect(fe[index + 1]);
+    }
+    return evidence;
+}
+
+void LogicFilter::ReportSpillGate()
+{
+    LOG(info) << "Spill gate counts: on=" << fGateOn << " off=" << fGateOff
+        << " unknown=" << fGateUnknown << " conflict=" << fGateConflict
+        << " (unknown processed as ON)";
+    fGateReport = std::chrono::steady_clock::now();
+}
+
 int LogicFilter::BuildHBF(
 	std::vector<struct HBFIndex> &hbf_list,
 	std::vector< std::vector<struct DataBlock> > &block_map,
@@ -1240,6 +1290,17 @@ bool LogicFilter::ConditionalRun()
 			{
 				LogicFilterTiming::Scope timer(timing, LogicFilterTiming::ClearSub);
 //				fTrig->CleanUpSubTimeRegion(fNEntryInSubTimeRegion_LogicFilter);
+			}
+			const auto gateEvidence = ReadSpillGate(block_map, inParts, i);
+			const auto gate = gateEvidence.State();
+			fTrig->SetSpillGate(gate);
+			if (!hbf_list.empty()) {
+				if (gate == SpillGate::On) ++fGateOn;
+				else if (gate == SpillGate::Off) ++fGateOff;
+				else ++fGateUnknown;
+				if (gateEvidence.Conflict()) ++fGateConflict;
+				if (std::chrono::steady_clock::now() - fGateReport >= std::chrono::seconds(5))
+					ReportSpillGate();
 			}
 			std::vector<uint32_t> *hits = fTrig->Exec(hbf_list, timing);
 			{
@@ -1605,6 +1666,7 @@ bool LogicFilter::ConditionalRun()
 void LogicFilter::PostRun()
 {
 	fProfile.Report(fName, true);
+	ReportSpillGate();
 	LOG(info) << "Post Run";
 	return;
 }
@@ -1675,13 +1737,19 @@ void addCustomOptions(bpo::options_description& options)
 			"Triger signals (module_IP Channel_number Offset)")
 		(opt::TriggerExpression.data(),
 			bpo::value<std::string>()->default_value("RPN 0 1 &"),
-			"Single expression or ID[-prescale]: expression definitions separated by newlines/semicolons")
+			"Single expression or ID[-prescale[-gate]]: expression; gate=0/1/2/3 disabled/ON/OFF/both")
 		(opt::TriggerWidth.data(),
 			bpo::value<std::string>()->default_value("10"),
 			"Trigger window width (4 ns unit)")
 		(opt::ProfileInterval.data(),
 			bpo::value<std::string>()->default_value("5000"),
 			"Stage profiling report interval in ms (0 disables profiling)")
+		(opt::SpillGateBit.data(),
+			bpo::value<std::string>()->default_value("0"),
+			"HBD1 frame flag bit 0..15; -1 treats all gates as unknown (ON)")
+		(opt::SpillGateActiveHigh.data(),
+			bpo::value<std::string>()->default_value("true"),
+			"true: flag=1 is spill ON; false: flag=0 is spill ON")
 
     		;
 }

@@ -178,8 +178,38 @@ count accepted IDs, not merged records. Counts/phases are per worker, reset per
 run, and are NOT yet exported to Redis or a scaler file. This is periodic
 prescaling local to each process, not globally ordered every-N-th sampling;
 periodic input and TF distribution may correlate with sampling. No spill reset
-or spill-gate handling is added. Configuration logs include each ID's factor.
+is added. Spill-gate selection is described below. Configuration logs include each ID's factor.
 
 The public accessors are now `GetHitTriggerFlags()`, `LookUpTriggerFlags()` and
 `Filter::GetTrgTimeTriggerFlags()`. Old OR-named accessors are removed.
 `MatchesTrgTimeType()` retains its existing wildcard/exact-match behavior.
+
+### Spill-gated trigger IDs
+
+Use `ID-prescale-gate: expression`, where gate=0 disables the ID, gate=1
+enables only spill ON, gate=2 only OFF, and gate=3 both. Omitted gate defaults
+to 3; omitted prescale defaults to 1. Legacy single expressions still work.
+Example: `0-1000-1: 0 & 1; 4-1-2: 5 & 6`.
+
+`spill-gate-bit` selects HBD1 hbflag bit 0..15 (default 0, as requested).
+`spill-gate-active-high=true` (default) means bit=1 is ON; false reverses it.
+Use bit=-1 to force unknown. Options are loaded during task initialization.
+
+Modern femType 5/6 HBD1 records are read from normal delimiter/HBF-part edges;
+legacy/unsupported forms are not interpreted as modern frame flags.
+For split data/delimiter parts, the following delimiter is inspected before
+processing the data. Frame numbers and states must agree across observed HBDs.
+No evidence, conflicting states or mismatched frame numbers result in Unknown.
+Unknown deliberately selects ON IDs, not OFF IDs. Remaining valid evidence
+can be used when one FE has no readable HBD. Unusual unsupported layouts may
+therefore select ON as Unknown; validate actual HBD coverage before physics use.
+
+Selection is applied AFTER logical rising-edge detection and BEFORE prescale.
+Disabled IDs do not increment before/after counts or advance prescale phases.
+Before flags mean gate-selected, pre-prescale rising IDs. The existing 12+12
+flag layout and 8-byte TrgTime record are unchanged. No trigger is synthesized
+on a gate transition, and no cross-HBF trigger state or spill reset is added.
+Gate state is HBF-granular. Counts of ON/OFF/Unknown/conflicting processed HBF
+data slots are logged every 5 seconds and at PostRun; Unknown is not silently
+reported as a measured ON. The synthetic E80 file has all flag bits zero and
+will appear OFF with bit0/active-high; it does not simulate real spill gates.

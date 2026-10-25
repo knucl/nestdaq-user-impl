@@ -65,6 +65,7 @@ public:
 	//void SetLogic(int);
 	void MakeTable(std::string &);
 	void ResetPrescaleCounters() { fTMap.ResetPrescaleCounters(); }
+	void SetSpillGate(SpillGate gate) { fSpillGate = gate; }
 	const std::array<uint64_t, 12>& GetBeforeCounts() const { return fTMap.GetBeforeCounts(); }
 	const std::array<uint64_t, 12>& GetAfterCounts() const { return fTMap.GetAfterCounts(); }
 	void SetfnEntryInSubTimeRegion(const std::map<uint32_t, uint32_t>& nEntryInSubTimeRegion);
@@ -101,6 +102,7 @@ private:
 	int fMarkLen = 5;
 
 	TriggerMap fTMap;
+	SpillGate fSpillGate = SpillGate::Unknown;
 };
 
 Trigger::Trigger()
@@ -126,6 +128,7 @@ void Trigger::SetfnEntryInSubTimeRegion(const std::map<uint32_t, uint32_t>& fNEn
 void Trigger::MakeTable(std::string & formula)
 {
 	fTMap.MakeTable(formula);
+	fSpillGate = SpillGate::Unknown;
 	return;
 }
 
@@ -466,6 +469,7 @@ std::vector<uint32_t> *Trigger::Scan(LogicFilterTiming::Frame* timing)
 	fHitTriggerFlags.clear();
 	fHitTriggerFlags.resize(0);
 
+	const uint32_t enabledTriggerMask = fTMap.GetEnabledTriggerMask(fSpillGate);
 	for (unsigned int i = 0 ; i < fTimeRegionSize - 1; i++) {
 		#if 0
 		if (((fEntryMask & fTimeRegion[i]) != fEntryMask)
@@ -475,7 +479,7 @@ std::vector<uint32_t> *Trigger::Scan(LogicFilterTiming::Frame* timing)
 		#else
 			const uint32_t prev = fTMap.LookUpTriggerFlags(fTimeRegion[i]);
 			const uint32_t curr = fTMap.LookUpTriggerFlags(fTimeRegion[i + 1]);
-			const uint32_t rawFlags = curr & ~prev;
+			const uint32_t rawFlags = (curr & ~prev) & enabledTriggerMask;
 			if (rawFlags != 0) {
 				const uint32_t acceptedFlags = fTMap.ApplyPrescale(rawFlags);
 				if (acceptedFlags != 0) {
